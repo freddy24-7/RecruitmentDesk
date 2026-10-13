@@ -33,6 +33,10 @@ class Vacancy(Base):
     # Terms flagged by the guardrail check, for a person to review.
     flags: Mapped[list[dict[str, str]]] = mapped_column(JSONB, default=list)
     version: Mapped[int] = mapped_column(default=0)
+    # Skills and neighbouring roles extracted from the text (VacancyProfile),
+    # and the version of the text they were extracted from.
+    profile: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    profile_version: Mapped[int | None]
     # Which prompt file and model produced the text.
     prompt_version: Mapped[str | None] = mapped_column(String(64))
     model: Mapped[str | None] = mapped_column(String(64))

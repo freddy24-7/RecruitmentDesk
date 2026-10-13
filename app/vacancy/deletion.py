@@ -1,14 +1,17 @@
-"""The one deletion path for a vacancy (CLAUDE.md rule 8).
+"""The one place where vacancy data is deleted (CLAUDE.md rule 8).
 
-"Cancel vacancy" deletes the vacancy and everything that belongs to it. No
-other module deletes vacancy data; a test checks that. The caller must pass
-an explicit confirmation, which the UI only sends after its confirmation
-dialog.
+"Cancel vacancy" deletes the vacancy and everything that belongs to it.
+Replacing candidates deletes the old ones. No other module deletes rows; a
+test checks that. Every function here needs an explicit confirmation, which
+the UI only sends after its confirmation dialog.
 """
+
+import uuid
 
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.candidates.models import Candidate
 from app.vacancy.models import Vacancy
 
 
@@ -30,3 +33,16 @@ async def delete_vacancy(
     if not confirmed:
         raise ConfirmationRequired
     await session.execute(delete(Vacancy).where(Vacancy.id == vacancy.id))
+
+
+async def delete_candidates(
+    session: AsyncSession, vacancy_id: uuid.UUID, *, confirmed: bool
+) -> None:
+    """Delete all candidates of a vacancy, before new ones replace them.
+
+    The caller commits. Tables that belong to a candidate reference it with
+    ON DELETE CASCADE.
+    """
+    if not confirmed:
+        raise ConfirmationRequired
+    await session.execute(delete(Candidate).where(Candidate.vacancy_id == vacancy_id))

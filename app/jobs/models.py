@@ -2,8 +2,10 @@
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -37,6 +39,8 @@ class Job(Base):
     # How often the job was started. Each start can cost model calls, so the
     # workspace limits count starts, not jobs.
     attempts: Mapped[int] = mapped_column(default=1)
+    # What the job was asked to do (for example how many candidates).
+    params: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     progress_done: Mapped[int] = mapped_column(default=0)
     progress_total: Mapped[int] = mapped_column(default=1)
     error_kind: Mapped[str | None] = mapped_column(String(32))

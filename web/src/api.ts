@@ -72,7 +72,48 @@ export type Vacancy = {
   submitted_at: string | null
   /** What can be done with a submitted vacancy, with the reason when it cannot. */
   actions: Action[]
+  /** Candidates whose CV is ready, and whether the vacancy changed since. */
+  candidates: { count: number; out_of_date: boolean }
   job: Job | null
+}
+
+export type CandidateSummary = {
+  id: string
+  number: number
+  name: string
+  email: string
+  phone: string
+  current_title: string
+  current_company: string
+  years_experience: number
+  skills: string[]
+}
+
+export type CandidateList = {
+  vacancy_id: string
+  vacancy_title: string
+  out_of_date: boolean
+  candidates: CandidateSummary[]
+}
+
+export type Cv = {
+  profile: string
+  positions: {
+    title: string
+    company: string
+    start: string
+    end: string | null
+    highlights: string[]
+    skills: string[]
+  }[]
+  education: { degree: string; institution: string; year: number }[]
+  skills: string[]
+  languages: { language: string; level: string }[]
+}
+
+export type CandidateDetail = CandidateSummary & {
+  out_of_date: boolean
+  cv: Cv
 }
 
 type ErrorBody = {
@@ -186,4 +227,33 @@ export function submitVacancy(vacancyId: string): Promise<Vacancy> {
  */
 export async function cancelVacancy(vacancyId: string): Promise<void> {
   await request<unknown>('DELETE', `/api/vacancies/${vacancyId}?confirm=true`)
+}
+
+/**
+ * Start generating candidates in the background. `replace` must be true when
+ * the vacancy already has candidates: send it only after the user confirmed.
+ */
+export function generateCandidates(
+  vacancyId: string,
+  count: number,
+  replace: boolean,
+): Promise<Job> {
+  return request<Job>('POST', `/api/vacancies/${vacancyId}/candidates`, {
+    count,
+    replace,
+  })
+}
+
+export function listCandidates(vacancyId: string): Promise<CandidateList> {
+  return request<CandidateList>('GET', `/api/vacancies/${vacancyId}/candidates`)
+}
+
+export function getCandidate(
+  vacancyId: string,
+  candidateId: string,
+): Promise<CandidateDetail> {
+  return request<CandidateDetail>(
+    'GET',
+    `/api/vacancies/${vacancyId}/candidates/${candidateId}`,
+  )
 }

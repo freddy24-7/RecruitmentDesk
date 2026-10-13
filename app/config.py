@@ -45,7 +45,10 @@ class Settings(BaseSettings):
     mistral_api_key: SecretStr | None = None
     # Exact, pinned model versions. No `-latest` aliases (CLAUDE.md).
     mistral_model_vacancy: str = "mistral-small-2603"
+    mistral_model_cv: str = "mistral-small-2603"
     llm_timeout_seconds: int = 60
+    # How many CVs are written at the same time. Low, because of rate limits.
+    cv_concurrency: int = 4
     # Makes the fake slow enough to see the spinner in development.
     fake_llm_delay_seconds: float = 0.0
 
@@ -55,6 +58,11 @@ class Settings(BaseSettings):
 
     # Per-workspace limits on billable work (see app/limits/workspace.py).
     max_vacancy_generations_per_workspace: int = 10
+    # Candidates one workspace may generate in total, over all its vacancies.
+    max_candidates_per_workspace: int = 300
+
+    # Blueprint sampling is seeded, so a pool can be reproduced.
+    blueprint_seed: int = 20261013
 
     @field_validator("database_url")
     @classmethod

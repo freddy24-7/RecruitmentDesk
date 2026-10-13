@@ -128,10 +128,11 @@ The app will be online and calls a paid model, so nothing is reachable without a
 
 ### F4 Generate candidates
 - The user enters a number from **1 to 100**. The limit is enforced on the server as well.
-- Candidates are created in two steps, which I recommend instead of asking the model for "100 CVs":
-  1. **Blueprints, by code.** Code samples a blueprint per candidate: a fictional name, years of experience, a subset of the vacancy's skills, seniority (sometimes above or below the vacancy), and a **match category**: strong match, partial match, adjacent role, or weak match, in a fixed distribution (for example 15%, 35%, 30%, 20%). This guarantees variety and means the **ground truth is known**.
-  2. **CV writing, by the model.** The model writes a realistic CV for each blueprint, in batches with limited concurrency. Output is structured: employment history with dates, education, skills, languages, and a short profile.
-- Contact details are clearly fictional: email addresses on a reserved domain (`example.com`), phone numbers from a reserved or clearly fictional range, and a "synthetic data" label in the UI.
+- Candidates are created in steps, which I recommend instead of asking the model for "100 CVs":
+  1. **Vacancy profile, by the model.** One call per vacancy version extracts the vacancy's skills as short keywords with the years it asks for, plus a few adjacent and unrelated roles. The blueprints are built from this.
+  2. **Blueprints, by code.** Code samples a blueprint per candidate: a fictional name, seniority (sometimes above or below the vacancy), a dated job timeline, the skills used in each job, and a **match category**: strong match, partial match, adjacent role, or weak match, in a fixed distribution (15%, 35%, 30%, 20%, with at least one strong match). Years of experience per skill follow from the timeline. This guarantees variety and means the **ground truth is known**.
+  3. **CV writing, by the model.** The model writes the prose of a CV for each blueprint (profile, job titles, company names, highlights, education), in batches with limited concurrency. Dates, the skills per job, languages and contact details are added by code. So the dated employment history in a CV is exactly the planted one. An answer that names a skill the candidate does not have, names a skill in a job where it was not used, or contains personal details is treated as invalid output.
+- Contact details are clearly fictional: email addresses on a reserved domain (`example.com`), phone numbers from the range Ofcom reserves for drama (`+44 7700 900xxx`), and a "synthetic data" label in the UI.
 - Progress shows as "x of N created". The candidates are stored on a **separate page per vacancy** (searchable, sortable, with a CV detail view).
 - Regenerating candidates replaces the existing ones, with a confirmation dialog, and marks the script results and lists as out of date.
 - The CV text must not include birth date, photo, gender, marital status or nationality.
@@ -308,6 +309,8 @@ Changes and additions I made, so you can accept or reject each one:
 9. Cost and abuse protection for a public deployment: access code, private workspaces with expiry, rate limits, daily spend cap.
 10. An evaluation script and report.
 11. Details of the access gate: what counts as a "use" (a new session, not a page load), atomic counting, brute-force limits, hashed storage with a pepper, a management script, and a computed worst-case spend per code.
+12. Interview questions for short-listed candidates (F8).
+13. A vacancy profile call, and job timelines built by code, so that the planted years of experience per skill are exact (F4).
 
 ## 17. Open decisions
 

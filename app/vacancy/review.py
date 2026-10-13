@@ -93,9 +93,10 @@ class Action:
 
 
 NOT_BUILT_YET = "Not available yet in this version of the demo."
+JOB_RUNNING = "Wait until the running job has finished."
 
 
-def available_actions(vacancy: Vacancy) -> list[Action]:
+def available_actions(vacancy: Vacancy, *, job_running: bool) -> list[Action]:
     """The actions on a submitted vacancy, each enabled or disabled with a reason.
 
     One function decides this, so the API and the screen cannot disagree. An
@@ -106,7 +107,10 @@ def available_actions(vacancy: Vacancy) -> list[Action]:
     return [
         Action("edit", "Edit vacancy", enabled=True),
         Action(
-            "generate_candidates", "Generate candidates", False, reason=NOT_BUILT_YET
+            "generate_candidates",
+            "Generate candidates",
+            enabled=not job_running,
+            reason=JOB_RUNNING if job_running else None,
         ),
         Action(
             "generate_script", "Generate selection script", False, reason=NOT_BUILT_YET

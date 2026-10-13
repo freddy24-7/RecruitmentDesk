@@ -48,7 +48,8 @@ async def clean_tables(database: None) -> None:
     async with get_sessionmaker()() as session:
         await session.execute(
             text(
-                "TRUNCATE usage_record, job, vacancy, workspace, failed_attempt, "
+                "TRUNCATE candidate, usage_record, job, vacancy, workspace, "
+                "failed_attempt, "
                 "access_code RESTART IDENTITY CASCADE"
             )
         )

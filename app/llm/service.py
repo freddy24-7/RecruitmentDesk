@@ -7,6 +7,7 @@ retried once, then fails with a clear error kind (CLAUDE.md rule 2).
 
 import time
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 import structlog
@@ -62,7 +63,13 @@ class LlmService:
         max_tokens: int,
         workspace_id: uuid.UUID | None,
         job_id: uuid.UUID | None,
+        check: Callable[[T], bool] | None = None,
     ) -> T:
+        """Ask the model for a `schema` object.
+
+        `check` is an extra test on a well-formed answer, for rules a schema
+        cannot express. An answer that fails it counts as invalid output.
+        """
         model = self.model_name(model)
         request = LlmRequest(
             call_type=call_type,
@@ -83,6 +90,8 @@ class LlmService:
             try:
                 value = schema.model_validate_json(response.text)
             except ValidationError:
+                value = None
+            if value is not None and check is not None and not check(value):
                 value = None
 
             await self._record(

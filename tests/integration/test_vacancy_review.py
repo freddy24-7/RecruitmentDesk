@@ -300,8 +300,9 @@ async def test_submitted_vacancy_lists_its_actions_with_reasons(
     ]
     assert actions["edit"]["enabled"] is True
     assert actions["edit"]["reason"] is None
+    assert actions["generate_candidates"]["enabled"] is True
     # Visible but disabled, each with the reason.
-    for key in list(actions)[1:]:
+    for key in ("generate_script", "generate_long_list", "generate_short_list"):
         assert actions[key]["enabled"] is False
         assert actions[key]["reason"]
     assert actions["generate_long_list"]["reason"] == (

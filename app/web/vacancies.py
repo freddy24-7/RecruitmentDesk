@@ -7,16 +7,18 @@ from typing import Annotated, Any
 import structlog
 from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.access.sessions import CurrentWorkspace
+from app.candidates import service as candidate_service
+from app.candidates.models import Candidate
 from app.config import Settings, get_settings
 from app.db import get_session
 from app.jobs.messages import message_for
-from app.jobs.models import Job
+from app.jobs.models import ACTIVE, Job
 from app.jobs.runner import JobRunner
-from app.limits.workspace import LimitReached
+from app.limits.workspace import CANDIDATE_GENERATION, LimitReached
 from app.vacancy import review, service
 from app.vacancy.deletion import ConfirmationRequired, delete_vacancy
 from app.vacancy.models import DRAFT, FAILED, Vacancy
@@ -67,6 +69,13 @@ class ActionOut(BaseModel):
     reason: str | None
 
 
+class CandidatesOut(BaseModel):
+    # Candidates whose CV is ready.
+    count: int
+    # True when the vacancy was edited after they were generated.
+    out_of_date: bool
+
+
 class VacancyOut(BaseModel):
     id: uuid.UUID
     status: str
@@ -80,6 +89,7 @@ class VacancyOut(BaseModel):
     submitted_at: datetime | None
     # What can be done with a submitted vacancy, with the reason when it cannot.
     actions: list[ActionOut]
+    candidates: CandidatesOut
     # The most recent job for this vacancy.
     job: JobOut | None
 
@@ -98,7 +108,7 @@ class OptionsOut(BaseModel):
     emphasis_max: int
 
 
-def _job_out(job: Job) -> JobOut:
+def job_out(job: Job) -> JobOut:
     return JobOut(
         id=job.id,
         type=job.type,
@@ -118,6 +128,14 @@ async def _vacancy_out(session: AsyncSession, vacancy: Vacancy) -> VacancyOut:
         .order_by(Job.created_at.desc())
         .limit(1)
     )
+    ready, oldest_version = (
+        await session.execute(
+            select(func.count(), func.min(Candidate.vacancy_version)).where(
+                Candidate.vacancy_id == vacancy.id, Candidate.cv.is_not(None)
+            )
+        )
+    ).one()
+    job_running = job is not None and job.status in ACTIVE
     return VacancyOut(
         id=vacancy.id,
         status=vacancy.status,
@@ -135,9 +153,14 @@ async def _vacancy_out(session: AsyncSession, vacancy: Vacancy) -> VacancyOut:
                 enabled=action.enabled,
                 reason=action.reason,
             )
-            for action in review.available_actions(vacancy)
+            for action in review.available_actions(vacancy, job_running=job_running)
         ],
-        job=_job_out(job) if job else None,
+        candidates=CandidatesOut(
+            count=ready,
+            out_of_date=oldest_version is not None
+            and oldest_version != vacancy.version,
+        ),
+        job=job_out(job) if job else None,
     )
 
 
@@ -189,7 +212,7 @@ async def list_vacancies(workspace: CurrentWorkspace, session: Db) -> list[Vacan
     return [await _vacancy_out(session, vacancy) for vacancy in vacancies.all()]
 
 
-async def _own_vacancy(
+async def own_vacancy(
     session: AsyncSession, vacancy_id: uuid.UUID, workspace_id: uuid.UUID
 ) -> Vacancy:
     vacancy = await session.scalar(
@@ -207,7 +230,7 @@ async def read_vacancy(
     vacancy_id: uuid.UUID, workspace: CurrentWorkspace, session: Db
 ) -> VacancyOut:
     return await _vacancy_out(
-        session, await _own_vacancy(session, vacancy_id, workspace.id)
+        session, await own_vacancy(session, vacancy_id, workspace.id)
     )
 
 
@@ -219,7 +242,7 @@ async def edit_vacancy(
     session: Db,
 ) -> VacancyOut:
     """Save edited sections as a new version (PRD F2)."""
-    vacancy = await _own_vacancy(session, vacancy_id, workspace.id)
+    vacancy = await own_vacancy(session, vacancy_id, workspace.id)
     try:
         changed = review.save_edits(vacancy, sections)
     except review.NotAllowed as refused:
@@ -237,7 +260,7 @@ async def reset_vacancy(
     vacancy_id: uuid.UUID, workspace: CurrentWorkspace, session: Db
 ) -> VacancyOut:
     """Go back to the text as the model wrote it. Edits are lost."""
-    vacancy = await _own_vacancy(session, vacancy_id, workspace.id)
+    vacancy = await own_vacancy(session, vacancy_id, workspace.id)
     try:
         review.reset_to_generated(vacancy)
     except review.NotAllowed as refused:
@@ -251,7 +274,7 @@ async def reset_vacancy(
 async def submit_vacancy(
     vacancy_id: uuid.UUID, workspace: CurrentWorkspace, session: Db
 ) -> VacancyOut:
-    vacancy = await _own_vacancy(session, vacancy_id, workspace.id)
+    vacancy = await own_vacancy(session, vacancy_id, workspace.id)
     try:
         review.submit(vacancy)
     except review.NotAllowed as refused:
@@ -275,7 +298,7 @@ async def cancel_vacancy(
     Destructive, so the caller must send `confirm=true`. The UI does that
     only after its confirmation dialog.
     """
-    vacancy = await _own_vacancy(session, vacancy_id, workspace.id)
+    vacancy = await own_vacancy(session, vacancy_id, workspace.id)
     if vacancy.status not in (DRAFT, FAILED):
         raise ApiError(
             409,
@@ -310,7 +333,7 @@ async def _own_job(
 async def read_job(
     job_id: uuid.UUID, workspace: CurrentWorkspace, session: Db
 ) -> JobOut:
-    return _job_out(await _own_job(session, job_id, workspace.id))
+    return job_out(await _own_job(session, job_id, workspace.id))
 
 
 @router.post("/jobs/{job_id}/retry", status_code=202)
@@ -324,7 +347,10 @@ async def retry_job(
     """Run a failed or interrupted job again."""
     job = await _own_job(session, job_id, workspace.id)
     try:
-        queued = await service.retry_generation(session, job, settings)
+        if job.type == CANDIDATE_GENERATION:
+            queued = await candidate_service.retry_generation(session, job)
+        else:
+            queued = await service.retry_generation(session, job, settings)
     except LimitReached as limit:
         raise _limit_error(limit) from limit
     if not queued:
@@ -332,4 +358,4 @@ async def retry_job(
     await session.commit()
     await session.refresh(job)
     runner.start(job.id)
-    return _job_out(job)
+    return job_out(job)

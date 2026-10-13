@@ -52,7 +52,75 @@ def fake_vacancy(request: LlmRequest) -> str:
     )
 
 
-DEFAULT_RESPONDERS: dict[str, Responder] = {"vacancy": fake_vacancy}
+def fake_vacancy_profile(request: LlmRequest) -> str:
+    """Skills that match the text of `fake_vacancy`, and some other jobs."""
+    return json.dumps(
+        {
+            "required_skills": [
+                {"name": "Microsoft Azure", "min_years": 3},
+                {"name": "Terraform", "min_years": 2},
+                {"name": "Kubernetes", "min_years": 0},
+                {"name": "CI/CD", "min_years": 0},
+            ],
+            "nice_skills": ["Scrum", "Python"],
+            "adjacent_roles": [
+                {
+                    "title": "Data Engineer",
+                    "skills": ["Apache Spark", "Airflow", "dbt"],
+                },
+                {"title": "Software Developer", "skills": ["Java", "Spring Boot"]},
+                {"title": "Network Engineer", "skills": ["Cisco", "BGP", "Firewalls"]},
+            ],
+            "unrelated_roles": [
+                {"title": "Marketing Specialist", "skills": ["SEO", "Copywriting"]},
+                {
+                    "title": "Financial Controller",
+                    "skills": ["IFRS", "SAP", "Budgeting"],
+                },
+                {"title": "Store Manager", "skills": ["Retail", "Staff planning"]},
+            ],
+        }
+    )
+
+
+def fake_cv(request: LlmRequest) -> str:
+    """CV prose for the jobs in the blueprint, naming each job's own skills."""
+    jobs = json.loads(request.variables["positions_json"])
+    return json.dumps(
+        {
+            "profile": (
+                f"{FAKE_NOTE} Professional with "
+                f"{request.variables['years_experience']} years of experience."
+            ),
+            "positions": [
+                {
+                    "title": f"{job['seniority'].capitalize()} {job['role']}",
+                    "company": f"Example Company {number} BV",
+                    "highlights": [
+                        "Worked on projects using " + ", ".join(job["skills"]) + "."
+                        if job["skills"]
+                        else "Supported the team in daily operations.",
+                        "Delivered results together with colleagues.",
+                    ],
+                }
+                for number, job in enumerate(jobs, start=1)
+            ],
+            "education": [
+                {
+                    "degree": request.variables["education_level"]
+                    + " of Example Studies",
+                    "institution": "Example University of Applied Sciences",
+                }
+            ],
+        }
+    )
+
+
+DEFAULT_RESPONDERS: dict[str, Responder] = {
+    "vacancy": fake_vacancy,
+    "vacancy_profile": fake_vacancy_profile,
+    "cv": fake_cv,
+}
 
 
 class FakeLlm:

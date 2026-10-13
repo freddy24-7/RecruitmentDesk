@@ -88,6 +88,7 @@ export function vacancy(overrides: Partial<Vacancy> = {}): Vacancy {
     created_at: '2026-10-13T12:00:00Z',
     submitted_at: null,
     actions: [],
+    candidates: { count: 0, out_of_date: false },
     job: job(),
     ...overrides,
   }
@@ -119,8 +120,8 @@ export const SUBMITTED = vacancy({
     {
       key: 'generate_candidates',
       label: 'Generate candidates',
-      enabled: false,
-      reason: 'Not available yet in this version of the demo.',
+      enabled: true,
+      reason: null,
     },
     {
       key: 'generate_script',

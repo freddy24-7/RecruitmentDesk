@@ -1,7 +1,11 @@
 import { useState } from 'react'
+import type { Vacancy } from './api.ts'
+import { CANDIDATE_JOB } from './CandidateProgress.tsx'
+import CandidatesPage from './CandidatesPage.tsx'
+import CandidateView from './CandidateView.tsx'
 import GenerateVacancyDialog from './GenerateVacancyDialog.tsx'
 import Spinner from './Spinner.tsx'
-import { describeChoices, useVacancies } from './vacancies.ts'
+import { describeChoices, jobIsRunning, useVacancies } from './vacancies.ts'
 import VacancyStatus from './VacancyStatus.tsx'
 import VacancyView from './VacancyView.tsx'
 
@@ -9,6 +13,35 @@ type View =
   | { name: 'home' }
   | { name: 'submitted' }
   | { name: 'vacancy'; vacancyId: string }
+  | { name: 'candidates'; vacancyId: string }
+  | { name: 'candidate'; vacancyId: string; candidateId: string }
+
+/** Short labels on a submitted vacancy: what exists for it already (PRD F3). */
+function StatusChips({ vacancy }: { vacancy: Vacancy }) {
+  const chips: string[] = []
+  if (vacancy.job?.type === CANDIDATE_JOB && jobIsRunning(vacancy)) {
+    chips.push(
+      `creating candidates: ${vacancy.job.progress_done} of ${vacancy.job.progress_total}`,
+    )
+  } else if (vacancy.candidates.count > 0) {
+    chips.push(
+      `${vacancy.candidates.count} ${vacancy.candidates.count === 1 ? 'candidate' : 'candidates'}`,
+    )
+    if (vacancy.candidates.out_of_date) {
+      chips.push('candidates out of date')
+    }
+  }
+  if (chips.length === 0) {
+    return null
+  }
+  return (
+    <ul className="chips" aria-label="Status">
+      {chips.map((chip) => (
+        <li key={chip}>{chip}</li>
+      ))}
+    </ul>
+  )
+}
 
 /** Everything behind the access gate. */
 function Workspace() {
@@ -23,7 +56,9 @@ function Workspace() {
   const inProgress = all.filter((vacancy) => vacancy.status !== 'submitted')
   const submitted = all.filter((vacancy) => vacancy.status === 'submitted')
   const opened =
-    view.name === 'vacancy'
+    view.name === 'vacancy' ||
+    view.name === 'candidates' ||
+    view.name === 'candidate'
       ? all.find((vacancy) => vacancy.id === view.vacancyId)
       : undefined
 
@@ -112,6 +147,7 @@ function Workspace() {
                           year: 'numeric',
                         })}`}
                     </p>
+                    <StatusChips vacancy={vacancy} />
                     <VacancyStatus vacancy={vacancy} onView={showVacancy} />
                   </li>
                 ))}
@@ -136,10 +172,31 @@ function Workspace() {
               }
               onCancelled={() => setView({ name: 'home' })}
               onSubmitted={() => setView({ name: 'submitted' })}
+              onViewCandidates={() =>
+                setView({ name: 'candidates', vacancyId: opened.id })
+              }
             />
           ) : (
             <p>This vacancy does not exist.</p>
           ))}
+
+        {vacancies.isSuccess && view.name === 'candidates' && opened && (
+          <CandidatesPage
+            vacancy={opened}
+            onBack={() => setView({ name: 'vacancy', vacancyId: opened.id })}
+            onOpen={(candidateId) =>
+              setView({ name: 'candidate', vacancyId: opened.id, candidateId })
+            }
+          />
+        )}
+
+        {vacancies.isSuccess && view.name === 'candidate' && opened && (
+          <CandidateView
+            vacancyId={opened.id}
+            candidateId={view.candidateId}
+            onBack={() => setView({ name: 'candidates', vacancyId: opened.id })}
+          />
+        )}
       </main>
 
       <GenerateVacancyDialog

@@ -138,3 +138,85 @@ def test_cancel_vacancy_needs_confirmation_and_then_deletes(
     page.get_by_role("button", name="Submitted vacancies").click()
     expect(page.get_by_text("No vacancies have yet been submitted")).to_be_visible()
     assert page.request.get(f"{app_url}/api/vacancies").json() == []
+
+
+def submitted_vacancy(page: Page, app_url: str) -> None:
+    """Enter, generate a vacancy, submit it and open it."""
+    enter(page, app_url)
+    generate(page)
+    page.get_by_role("dialog").get_by_role(
+        "button", name="Your vacancy is ready to be viewed"
+    ).click(timeout=15_000)
+    page.get_by_role("button", name="Submit vacancy").click()
+    page.get_by_role("button", name="Open vacancy").click()
+    expect(page.get_by_role("list", name="Actions")).to_be_visible()
+
+
+def test_generate_candidates_and_read_a_cv(page: Page, app_url: str) -> None:
+    submitted_vacancy(page, app_url)
+
+    page.get_by_role("button", name="Generate candidates").click()
+    dialog = page.get_by_role("dialog", name="Generate candidates")
+    dialog.get_by_label("Number of candidates").fill("101")
+    dialog.get_by_role("button", name="Generate", exact=True).click()
+    # More than 100 is refused in the form; nothing starts.
+    expect(dialog.get_by_label("Number of candidates")).to_have_attribute(
+        "aria-invalid", "true"
+    )
+
+    dialog.get_by_label("Number of candidates").fill("6")
+    dialog.get_by_role("button", name="Generate", exact=True).click()
+
+    # Progress as "x of N created".
+    expect(dialog.get_by_role("status")).to_have_text(
+        re.compile(r"\d of 6 candidates created")
+    )
+    view = dialog.get_by_role("button", name="View candidates (6)")
+    expect(view).to_be_visible(timeout=30_000)
+    view.click()
+
+    # A page of its own for this vacancy, labelled as synthetic data.
+    expect(
+        page.get_by_role("heading", name="Candidates for Cloud Engineer")
+    ).to_be_visible()
+    expect(
+        page.get_by_text("Synthetic data. These people do not exist")
+    ).to_be_visible()
+    rows = page.get_by_role("table").get_by_role("row")
+    expect(rows).to_have_count(7)  # the header and six candidates
+    expect(page.get_by_text("@example.com")).to_have_count(0)  # shown on the CV only
+
+    # Sorting changes the order; searching narrows the list.
+    first_name = rows.nth(1).get_by_role("button").inner_text()
+    page.get_by_role("button", name="Name", exact=True).click()
+    expect(page.get_by_role("columnheader", name="Name")).to_have_attribute(
+        "aria-sort", "ascending"
+    )
+    page.get_by_label("Search candidates").fill(first_name)
+    expect(rows).to_have_count(2)
+    expect(page.get_by_role("status")).to_have_text("Showing 1 of 6 candidates")
+
+    # The CV detail view.
+    page.get_by_role("button", name=first_name).click()
+    expect(page.get_by_role("heading", name=first_name, level=2)).to_be_visible()
+    expect(
+        page.get_by_text("Synthetic data. This person does not exist.")
+    ).to_be_visible()
+    expect(
+        page.get_by_text(re.compile(r"@example\.com · \+44 7700 900\d{3}"))
+    ).to_be_visible()
+    expect(page.get_by_role("heading", name="Employment")).to_be_visible()
+    expect(
+        page.get_by_text(re.compile(r"\w{3} \d{4} to (present|\w{3} \d{4})")).first
+    ).to_be_visible()
+
+    # Back at the vacancy, generating again says what it replaces.
+    page.get_by_role("button", name="Back to candidates").click()
+    page.get_by_role("button", name="Back to vacancy").click()
+    page.get_by_role("button", name="Generate candidates").click()
+    expect(page.get_by_role("dialog").get_by_role("note")).to_contain_text(
+        "This replaces the 6 existing candidates of this vacancy."
+    )
+    expect(
+        page.get_by_role("dialog").get_by_role("button", name="Replace candidates")
+    ).to_be_visible()

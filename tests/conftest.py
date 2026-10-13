@@ -42,3 +42,7 @@ os.environ["FAKE_LLM_DELAY_SECONDS"] = "0"
 os.environ["MAX_VACANCY_GENERATIONS_PER_WORKSPACE"] = "10"
 # Tests do not depend on whether the frontend happens to be built.
 os.environ["FRONTEND_DIST"] = "does-not-exist"
+os.environ["MISTRAL_MODEL_CV"] = "mistral-small-2603"
+os.environ["CV_CONCURRENCY"] = "4"
+os.environ["MAX_CANDIDATES_PER_WORKSPACE"] = "300"
+os.environ["BLUEPRINT_SEED"] = "20261013"

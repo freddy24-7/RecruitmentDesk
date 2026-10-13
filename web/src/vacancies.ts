@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   cancelVacancy,
+  generateCandidates,
+  getCandidate,
+  listCandidates,
   listVacancies,
   resetVacancy,
   retryJob,
@@ -10,6 +13,10 @@ import {
 import type { Vacancy, VacancySections } from './api.ts'
 
 export const VACANCIES_KEY = ['vacancies']
+
+export function jobIsRunning(vacancy: Vacancy): boolean {
+  return vacancy.job?.status === 'queued' || vacancy.job?.status === 'running'
+}
 
 // How often to ask for news while a job runs. Short in tests, so they are fast.
 const POLL_MS = import.meta.env.MODE === 'test' ? 20 : 1500
@@ -24,7 +31,9 @@ export function useVacancies() {
     queryKey: VACANCIES_KEY,
     queryFn: listVacancies,
     refetchInterval: (query) =>
-      query.state.data?.some((vacancy) => vacancy.status === 'generating')
+      query.state.data?.some(
+        (vacancy) => vacancy.status === 'generating' || jobIsRunning(vacancy),
+      )
         ? POLL_MS
         : false,
   })
@@ -84,5 +93,39 @@ export function useCancelVacancy(vacancyId: string) {
       queryClient.setQueryData<Vacancy[]>(VACANCIES_KEY, (current) =>
         current?.filter((vacancy) => vacancy.id !== vacancyId),
       ),
+  })
+}
+
+export function useGenerateCandidates(vacancyId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ count, replace }: { count: number; replace: boolean }) =>
+      generateCandidates(vacancyId, count, replace),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: VACANCIES_KEY }),
+  })
+}
+
+/**
+ * The candidates of a vacancy. The key includes how many are ready and which
+ * job made them, so the list is fetched again while CVs come in and after a
+ * new run.
+ */
+export function useCandidates(vacancy: Vacancy) {
+  return useQuery({
+    queryKey: [
+      'candidates',
+      vacancy.id,
+      vacancy.candidates.count,
+      vacancy.candidates.out_of_date,
+      vacancy.job?.id,
+    ],
+    queryFn: () => listCandidates(vacancy.id),
+  })
+}
+
+export function useCandidate(vacancyId: string, candidateId: string) {
+  return useQuery({
+    queryKey: ['candidate', vacancyId, candidateId],
+    queryFn: () => getCandidate(vacancyId, candidateId),
   })
 }

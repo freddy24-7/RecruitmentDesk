@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import type { Action, Vacancy, VacancySections } from './api.ts'
+import CandidateProgress from './CandidateProgress.tsx'
+import GenerateCandidatesDialog from './GenerateCandidatesDialog.tsx'
 import {
   LIST_SECTIONS,
   SECTION_NAMES,
@@ -14,6 +16,7 @@ type Props = {
   onBack: () => void
   onCancelled: () => void
   onSubmitted: () => void
+  onViewCandidates: () => void
 }
 
 function formatDate(iso: string): string {
@@ -58,10 +61,10 @@ function ReadOnlySections({ sections }: { sections: VacancySections }) {
  */
 function Actions({
   actions,
-  onEdit,
+  onAction,
 }: {
   actions: Action[]
-  onEdit: () => void
+  onAction: (key: string) => void
 }) {
   return (
     <ul className="action-list" aria-label="Actions">
@@ -76,8 +79,8 @@ function Actions({
               aria-disabled={action.enabled ? undefined : true}
               aria-describedby={action.reason ? reasonId : undefined}
               onClick={() => {
-                if (action.enabled && action.key === 'edit') {
-                  onEdit()
+                if (action.enabled) {
+                  onAction(action.key)
                 }
               }}
             >
@@ -96,8 +99,15 @@ function Actions({
 }
 
 /** One vacancy: the editor for a draft, text and actions for a submitted one. */
-function VacancyView({ vacancy, onBack, onCancelled, onSubmitted }: Props) {
+function VacancyView({
+  vacancy,
+  onBack,
+  onCancelled,
+  onSubmitted,
+  onViewCandidates,
+}: Props) {
   const [editing, setEditing] = useState(false)
+  const [generatingCandidates, setGeneratingCandidates] = useState(false)
   const sections = vacancy.sections
   const isDraft = vacancy.status === 'draft'
   const showEditor = sections !== null && (isDraft || editing)
@@ -135,7 +145,20 @@ function VacancyView({ vacancy, onBack, onCancelled, onSubmitted }: Props) {
 
       {sections !== null && !showEditor && (
         <>
-          <Actions actions={vacancy.actions} onEdit={() => setEditing(true)} />
+          <Actions
+            actions={vacancy.actions}
+            onAction={(key) => {
+              if (key === 'edit') {
+                setEditing(true)
+              } else if (key === 'generate_candidates') {
+                setGeneratingCandidates(true)
+              }
+            }}
+          />
+          <CandidateProgress
+            vacancy={vacancy}
+            onViewCandidates={onViewCandidates}
+          />
           <ReadOnlySections sections={sections} />
         </>
       )}
@@ -149,6 +172,13 @@ function VacancyView({ vacancy, onBack, onCancelled, onSubmitted }: Props) {
           onDone={isDraft ? undefined : () => setEditing(false)}
         />
       )}
+
+      <GenerateCandidatesDialog
+        vacancy={vacancy}
+        open={generatingCandidates}
+        onOpenChange={setGeneratingCandidates}
+        onViewCandidates={onViewCandidates}
+      />
     </article>
   )
 }

@@ -7,7 +7,8 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
-from app.jobs.models import QUEUED, RETRYABLE, Job
+from app.jobs.models import Job
+from app.jobs.retry import requeue
 from app.jobs.runner import JobFailed
 from app.limits.workspace import VACANCY_GENERATION, check_can_generate_vacancy
 from app.llm.base import LlmError
@@ -57,20 +58,7 @@ async def start_generation(
 async def retry_generation(session: AsyncSession, job: Job, settings: Settings) -> bool:
     """Queue a failed or interrupted job again. False if it was not retryable."""
     await check_can_generate_vacancy(session, job.workspace_id, settings)
-    # Conditional, so a double click queues the job once.
-    queued = await session.scalar(
-        update(Job)
-        .where(Job.id == job.id, Job.status.in_(RETRYABLE))
-        .values(
-            status=QUEUED,
-            attempts=Job.attempts + 1,
-            error_kind=None,
-            started_at=None,
-            finished_at=None,
-        )
-        .returning(Job.id)
-    )
-    if queued is None:
+    if not await requeue(session, job):
         return False
     if job.vacancy_id is not None:
         await session.execute(

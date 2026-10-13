@@ -14,6 +14,7 @@ Built in ten stages (PRD section 13). Done so far:
 - **Stage 1, access gate:** nothing is reachable without an access code. Codes are limited to 20 uses, counted atomically, stored only as keyed hashes, and protected against guessing.
 - **Stage 2, vacancy generation:** a dialog with a few choices starts a background job; the model writes a vacancy in structured sections. Every model call goes through one module, returns validated JSON, and leaves a usage record. Tested with a fake model only: nothing has run against the real Mistral API yet.
 - **Stage 3, review and submit:** a draft is reviewed in an editor, with versions and "Reset to generated". "Cancel vacancy" deletes it after a confirmation that says what is lost. Submitted vacancies get their own list, with actions that are disabled, with a reason, until their prerequisites exist.
+- **Stage 4, candidates:** 1 to 100 fictional candidates per vacancy. Code samples who each candidate is (with a known match category, as ground truth) and builds their dated job history; the model writes the CV prose. A searchable, sortable candidate page with a CV view. Tested with a fake model only.
 
 ## Run it locally
 
@@ -68,7 +69,7 @@ uv run pytest tests/unit tests/integration --cov --cov-fail-under=70   # needs t
                                          # tests use their own database (recruitdesk_test) and fake secrets
 uv run python scripts/check_tracked_files.py    # no access codes or .env files tracked by Git
 
-uv run pytest -m mistral tests/real -s             # ONE real Mistral call; costs money, needs MISTRAL_API_KEY
+uv run pytest -m mistral tests/real -s             # six real Mistral calls (under one cent); needs MISTRAL_API_KEY
 
 npm --prefix web run build                         # the browser tests use the built frontend
 uv run playwright install chromium                 # once
