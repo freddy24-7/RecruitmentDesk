@@ -1,6 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { listVacancies, retryJob } from './api.ts'
-import type { Vacancy } from './api.ts'
+import {
+  cancelVacancy,
+  listVacancies,
+  resetVacancy,
+  retryJob,
+  saveSections,
+  submitVacancy,
+} from './api.ts'
+import type { Vacancy, VacancySections } from './api.ts'
 
 export const VACANCIES_KEY = ['vacancies']
 
@@ -34,4 +41,48 @@ export function useRetryJob() {
 export function describeChoices(vacancy: Vacancy): string {
   const { sector, seniority, work_mode } = vacancy.parameters
   return [sector, seniority.join(', '), work_mode.join(', ')].join(' · ')
+}
+
+/** Put a vacancy that the server just returned into the cached list. */
+function useStoreVacancy() {
+  const queryClient = useQueryClient()
+  return (updated: Vacancy) =>
+    queryClient.setQueryData<Vacancy[]>(VACANCIES_KEY, (current) =>
+      current?.map((vacancy) => (vacancy.id === updated.id ? updated : vacancy)),
+    )
+}
+
+export function useSaveSections(vacancyId: string) {
+  const store = useStoreVacancy()
+  return useMutation({
+    mutationFn: (sections: VacancySections) => saveSections(vacancyId, sections),
+    onSuccess: store,
+  })
+}
+
+export function useResetVacancy(vacancyId: string) {
+  const store = useStoreVacancy()
+  return useMutation({
+    mutationFn: () => resetVacancy(vacancyId),
+    onSuccess: store,
+  })
+}
+
+export function useSubmitVacancy(vacancyId: string) {
+  const store = useStoreVacancy()
+  return useMutation({
+    mutationFn: () => submitVacancy(vacancyId),
+    onSuccess: store,
+  })
+}
+
+export function useCancelVacancy(vacancyId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => cancelVacancy(vacancyId),
+    onSuccess: () =>
+      queryClient.setQueryData<Vacancy[]>(VACANCIES_KEY, (current) =>
+        current?.filter((vacancy) => vacancy.id !== vacancyId),
+      ),
+  })
 }

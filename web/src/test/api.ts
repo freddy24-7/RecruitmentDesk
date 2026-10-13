@@ -3,7 +3,7 @@ import type { Job, Vacancy, VacancyOptions } from '../api.ts'
 
 export type Call = { route: string; body: unknown }
 
-type Handler = () => Response
+type Handler = (body: unknown) => Response
 
 export function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -22,15 +22,14 @@ export function mockApi(routes: Record<string, Handler>): Call[] {
     'fetch',
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const route = `${init?.method ?? 'GET'} ${String(input)}`
-      calls.push({
-        route,
-        body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined,
-      })
+      const body: unknown =
+        typeof init?.body === 'string' ? JSON.parse(init.body) : undefined
+      calls.push({ route, body })
       const handler = routes[route]
       if (!handler) {
         return json(404, { error: 'not_found', message: `No mock for ${route}` })
       }
-      return handler()
+      return handler(body)
     }),
   )
   return calls
@@ -85,7 +84,10 @@ export function vacancy(overrides: Partial<Vacancy> = {}): Vacancy {
     },
     flags: [],
     version: 1,
+    edited: false,
     created_at: '2026-10-13T12:00:00Z',
+    submitted_at: null,
+    actions: [],
     job: job(),
     ...overrides,
   }
@@ -107,4 +109,36 @@ export const FAILED = vacancy({
     error_kind: 'llm_rate_limited',
     message: 'The model is busy right now. Please try again in a moment.',
   }),
+})
+
+export const SUBMITTED = vacancy({
+  status: 'submitted',
+  submitted_at: '2026-10-13T13:00:00Z',
+  actions: [
+    { key: 'edit', label: 'Edit vacancy', enabled: true, reason: null },
+    {
+      key: 'generate_candidates',
+      label: 'Generate candidates',
+      enabled: false,
+      reason: 'Not available yet in this version of the demo.',
+    },
+    {
+      key: 'generate_script',
+      label: 'Generate selection script',
+      enabled: false,
+      reason: 'Not available yet in this version of the demo.',
+    },
+    {
+      key: 'generate_long_list',
+      label: 'Generate long-list',
+      enabled: false,
+      reason: 'Generate candidates and a selection script first.',
+    },
+    {
+      key: 'generate_short_list',
+      label: 'Generate short-list',
+      enabled: false,
+      reason: 'Generate candidates and a selection script first.',
+    },
+  ],
 })

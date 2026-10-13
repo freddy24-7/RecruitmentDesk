@@ -100,8 +100,18 @@ function Workspace() {
               <ul className="cards">
                 {submitted.map((vacancy) => (
                   <li key={vacancy.id} className="card">
-                    <h3>{vacancy.parameters.title}</h3>
-                    <p className="hint">{describeChoices(vacancy)}</p>
+                    <h3>{vacancy.sections?.title || vacancy.parameters.title}</h3>
+                    <p className="hint">
+                      {describeChoices(vacancy)}
+                      {vacancy.submitted_at &&
+                        ` · Submitted on ${new Date(
+                          vacancy.submitted_at,
+                        ).toLocaleDateString('en-GB', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                        })}`}
+                    </p>
                     <VacancyStatus vacancy={vacancy} onView={showVacancy} />
                   </li>
                 ))}
@@ -114,8 +124,18 @@ function Workspace() {
           view.name === 'vacancy' &&
           (opened ? (
             <VacancyView
+              // A different vacancy starts with a fresh editor.
+              key={opened.id}
               vacancy={opened}
-              onBack={() => setView({ name: 'home' })}
+              onBack={() =>
+                setView(
+                  opened.status === 'submitted'
+                    ? { name: 'submitted' }
+                    : { name: 'home' },
+                )
+              }
+              onCancelled={() => setView({ name: 'home' })}
+              onSubmitted={() => setView({ name: 'submitted' })}
             />
           ) : (
             <p>This vacancy does not exist.</p>

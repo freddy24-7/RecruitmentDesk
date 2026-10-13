@@ -9,7 +9,7 @@ import re
 
 from pydantic import BaseModel
 
-from app.vacancy.schemas import VacancySections
+from app.vacancy.schemas import DraftSections
 
 # (pattern, the protected attribute it may point at)
 TERMS: list[tuple[str, str]] = [
@@ -40,7 +40,7 @@ class Flag(BaseModel):
     attribute: str
 
 
-def find_flags(sections: VacancySections) -> list[Flag]:
+def find_flags(sections: DraftSections) -> list[Flag]:
     """Return every flagged term, with the section it was found in."""
     flags: list[Flag] = []
     for section, value in sections.model_dump().items():

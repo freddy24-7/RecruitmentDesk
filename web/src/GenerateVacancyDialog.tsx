@@ -5,6 +5,7 @@ import type { FormEvent } from 'react'
 import { generateVacancy, getVacancyOptions } from './api.ts'
 import type { VacancyChoices, VacancyOptions } from './api.ts'
 import Spinner from './Spinner.tsx'
+import { useReturnFocus } from './useReturnFocus.ts'
 import { useVacancies, VACANCIES_KEY } from './vacancies.ts'
 import VacancyStatus from './VacancyStatus.tsx'
 
@@ -19,11 +20,13 @@ type Props = {
  * and labels the dialog for screen readers.
  */
 function GenerateVacancyDialog({ open, onOpenChange, onView }: Props) {
+  const returnFocus = useReturnFocus()
+
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
-        <Dialog.Content className="dialog">
+        <Dialog.Content className="dialog" {...returnFocus}>
           <Dialog.Title>Generate vacancy</Dialog.Title>
           {/* Mounted only while open, so every visit starts with an empty form. */}
           <DialogBody

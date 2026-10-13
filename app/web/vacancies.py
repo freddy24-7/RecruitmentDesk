@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Annotated, Any
 
 import structlog
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,12 +17,14 @@ from app.jobs.messages import message_for
 from app.jobs.models import Job
 from app.jobs.runner import JobRunner
 from app.limits.workspace import LimitReached
-from app.vacancy import service
-from app.vacancy.models import Vacancy
+from app.vacancy import review, service
+from app.vacancy.deletion import ConfirmationRequired, delete_vacancy
+from app.vacancy.models import DRAFT, FAILED, Vacancy
 from app.vacancy.schemas import (
     COMPANY_MAX,
     EMPHASIS_MAX,
     TITLE_MAX,
+    DraftSections,
     Sector,
     Seniority,
     VacancyParameters,
@@ -58,6 +60,13 @@ class JobOut(BaseModel):
     vacancy_id: uuid.UUID | None
 
 
+class ActionOut(BaseModel):
+    key: str
+    label: str
+    enabled: bool
+    reason: str | None
+
+
 class VacancyOut(BaseModel):
     id: uuid.UUID
     status: str
@@ -65,7 +74,12 @@ class VacancyOut(BaseModel):
     sections: dict[str, Any] | None
     flags: list[dict[str, str]]
     version: int
+    # True when the text differs from what the model wrote.
+    edited: bool
     created_at: datetime
+    submitted_at: datetime | None
+    # What can be done with a submitted vacancy, with the reason when it cannot.
+    actions: list[ActionOut]
     # The most recent job for this vacancy.
     job: JobOut | None
 
@@ -111,7 +125,18 @@ async def _vacancy_out(session: AsyncSession, vacancy: Vacancy) -> VacancyOut:
         sections=vacancy.sections,
         flags=vacancy.flags,
         version=vacancy.version,
+        edited=vacancy.sections != vacancy.generated_sections,
         created_at=vacancy.created_at,
+        submitted_at=vacancy.submitted_at,
+        actions=[
+            ActionOut(
+                key=action.key,
+                label=action.label,
+                enabled=action.enabled,
+                reason=action.reason,
+            )
+            for action in review.available_actions(vacancy)
+        ],
         job=_job_out(job) if job else None,
     )
 
@@ -164,18 +189,110 @@ async def list_vacancies(workspace: CurrentWorkspace, session: Db) -> list[Vacan
     return [await _vacancy_out(session, vacancy) for vacancy in vacancies.all()]
 
 
-@router.get("/vacancies/{vacancy_id}")
-async def read_vacancy(
-    vacancy_id: uuid.UUID, workspace: CurrentWorkspace, session: Db
-) -> VacancyOut:
+async def _own_vacancy(
+    session: AsyncSession, vacancy_id: uuid.UUID, workspace_id: uuid.UUID
+) -> Vacancy:
     vacancy = await session.scalar(
         select(Vacancy).where(
-            Vacancy.id == vacancy_id, Vacancy.workspace_id == workspace.id
+            Vacancy.id == vacancy_id, Vacancy.workspace_id == workspace_id
         )
     )
     if vacancy is None:
         raise ApiError(404, "not_found", "This vacancy does not exist.")
+    return vacancy
+
+
+@router.get("/vacancies/{vacancy_id}")
+async def read_vacancy(
+    vacancy_id: uuid.UUID, workspace: CurrentWorkspace, session: Db
+) -> VacancyOut:
+    return await _vacancy_out(
+        session, await _own_vacancy(session, vacancy_id, workspace.id)
+    )
+
+
+@router.put("/vacancies/{vacancy_id}/sections")
+async def edit_vacancy(
+    vacancy_id: uuid.UUID,
+    sections: DraftSections,
+    workspace: CurrentWorkspace,
+    session: Db,
+) -> VacancyOut:
+    """Save edited sections as a new version (PRD F2)."""
+    vacancy = await _own_vacancy(session, vacancy_id, workspace.id)
+    try:
+        changed = review.save_edits(vacancy, sections)
+    except review.NotAllowed as refused:
+        raise ApiError(409, refused.kind, refused.message) from refused
+    except review.SectionsIncomplete as incomplete:
+        raise ApiError(422, "sections_incomplete", incomplete.message) from incomplete
+    await session.commit()
+    if changed:
+        log.info("vacancy.edited", vacancy_id=str(vacancy.id), version=vacancy.version)
     return await _vacancy_out(session, vacancy)
+
+
+@router.post("/vacancies/{vacancy_id}/reset")
+async def reset_vacancy(
+    vacancy_id: uuid.UUID, workspace: CurrentWorkspace, session: Db
+) -> VacancyOut:
+    """Go back to the text as the model wrote it. Edits are lost."""
+    vacancy = await _own_vacancy(session, vacancy_id, workspace.id)
+    try:
+        review.reset_to_generated(vacancy)
+    except review.NotAllowed as refused:
+        raise ApiError(409, refused.kind, refused.message) from refused
+    await session.commit()
+    log.info("vacancy.reset", vacancy_id=str(vacancy.id), version=vacancy.version)
+    return await _vacancy_out(session, vacancy)
+
+
+@router.post("/vacancies/{vacancy_id}/submit")
+async def submit_vacancy(
+    vacancy_id: uuid.UUID, workspace: CurrentWorkspace, session: Db
+) -> VacancyOut:
+    vacancy = await _own_vacancy(session, vacancy_id, workspace.id)
+    try:
+        review.submit(vacancy)
+    except review.NotAllowed as refused:
+        raise ApiError(409, refused.kind, refused.message) from refused
+    except review.SectionsIncomplete as incomplete:
+        raise ApiError(422, "sections_incomplete", incomplete.message) from incomplete
+    await session.commit()
+    log.info("vacancy.submitted", vacancy_id=str(vacancy.id))
+    return await _vacancy_out(session, vacancy)
+
+
+@router.delete("/vacancies/{vacancy_id}", status_code=204)
+async def cancel_vacancy(
+    vacancy_id: uuid.UUID,
+    workspace: CurrentWorkspace,
+    session: Db,
+    confirm: bool = False,
+) -> Response:
+    """Cancel vacancy: delete the draft and all related data (PRD F2).
+
+    Destructive, so the caller must send `confirm=true`. The UI does that
+    only after its confirmation dialog.
+    """
+    vacancy = await _own_vacancy(session, vacancy_id, workspace.id)
+    if vacancy.status not in (DRAFT, FAILED):
+        raise ApiError(
+            409,
+            "not_cancellable",
+            "Only a draft can be cancelled, and not while it is being written.",
+        )
+    try:
+        await delete_vacancy(session, vacancy, confirmed=confirm)
+    except ConfirmationRequired as missing:
+        raise ApiError(
+            400,
+            "confirmation_required",
+            "Deleting a vacancy needs an explicit confirmation.",
+        ) from missing
+    await session.commit()
+    log.info("vacancy.cancelled", vacancy_id=str(vacancy_id))
+    return Response(status_code=204)
 
 
 async def _own_job(

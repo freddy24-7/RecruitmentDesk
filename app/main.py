@@ -2,9 +2,11 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import structlog
 from fastapi import APIRouter, Depends, FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.access.sessions import require_workspace
 from app.config import get_settings
@@ -71,6 +73,12 @@ def create_app(llm_client: LlmClient | None = None) -> FastAPI:
     protected.include_router(access.router)
     protected.include_router(vacancies.router)
     app.include_router(protected)
+
+    # Last, so it never shadows an API route. The page itself is public: it is
+    # only the code entry screen until the API hands out a session.
+    frontend = Path(settings.frontend_dist)
+    if (frontend / "index.html").is_file():
+        app.mount("/", StaticFiles(directory=frontend, html=True), name="frontend")
 
     return app
 

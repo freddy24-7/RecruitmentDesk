@@ -171,10 +171,11 @@ test('generating shows a spinner, then the ready button, then the vacancy', asyn
   expect(
     await screen.findByRole('heading', { name: 'Cloud Engineer', level: 2 }),
   ).toBeInTheDocument()
-  expect(
-    screen.getByText('3 years of experience with Microsoft Azure'),
-  ).toBeInTheDocument()
-  expect(screen.getByRole('heading', { name: 'Responsibilities' })).toBeInTheDocument()
+  // The draft opens for review, with each section in an editable field.
+  expect(screen.getByLabelText('Required qualifications')).toHaveValue(
+    '3 years of experience with Microsoft Azure',
+  )
+  expect(screen.getByRole('button', { name: 'Submit vacancy' })).toBeInTheDocument()
 })
 
 test('the dialog can be closed without losing the job', async () => {
@@ -257,6 +258,8 @@ test('the dialog closes with Escape and opens empty the next time', async () => 
 
   await user.keyboard('{Escape}')
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  // Focus goes back to the button that opened the dialog.
+  expect(screen.getByRole('button', { name: 'Generate vacancy' })).toHaveFocus()
 
   const reopened = await openDialog()
   expect(within(reopened.dialog).getByLabelText('Vacancy title')).toHaveValue('')

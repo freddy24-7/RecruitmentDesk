@@ -1,52 +1,118 @@
-import type { Vacancy, VacancySections } from './api.ts'
+import { useState } from 'react'
+import type { Action, Vacancy, VacancySections } from './api.ts'
+import {
+  LIST_SECTIONS,
+  SECTION_NAMES,
+  SECTION_ORDER,
+  sectionName,
+} from './sections.ts'
 import { describeChoices } from './vacancies.ts'
+import VacancyEditor from './VacancyEditor.tsx'
 
 type Props = {
   vacancy: Vacancy
   onBack: () => void
+  onCancelled: () => void
+  onSubmitted: () => void
 }
 
-const SECTION_NAMES: Record<keyof VacancySections, string> = {
-  title: 'Title',
-  company_intro: 'About the company',
-  role_summary: 'The role',
-  responsibilities: 'Responsibilities',
-  required_qualifications: 'Required qualifications',
-  nice_to_haves: 'Nice to have',
-  what_we_offer: 'What we offer',
-  location_and_work_mode: 'Location and work mode',
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
 }
 
-function sectionName(section: string): string {
-  return section in SECTION_NAMES
-    ? SECTION_NAMES[section as keyof VacancySections]
-    : section
-}
-
-function Items({ items }: { items: string[] }) {
-  if (items.length === 0) {
-    return <p className="hint">None.</p>
-  }
+function ReadOnlySections({ sections }: { sections: VacancySections }) {
   return (
-    <ul>
-      {items.map((item) => (
-        <li key={item}>{item}</li>
-      ))}
+    <>
+      {SECTION_ORDER.filter((key) => key !== 'title').map((key) => {
+        const value = sections[key]
+        return (
+          <section key={key}>
+            <h3>{SECTION_NAMES[key]}</h3>
+            {LIST_SECTIONS.has(key) && Array.isArray(value) ? (
+              value.length === 0 ? (
+                <p className="hint">None.</p>
+              ) : (
+                <ul>
+                  {value.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              )
+            ) : (
+              <p>{value}</p>
+            )}
+          </section>
+        )
+      })}
+    </>
+  )
+}
+
+/**
+ * The actions on a submitted vacancy. An action whose prerequisites are
+ * missing stays visible but disabled, with the reason next to it (PRD F3).
+ */
+function Actions({
+  actions,
+  onEdit,
+}: {
+  actions: Action[]
+  onEdit: () => void
+}) {
+  return (
+    <ul className="action-list" aria-label="Actions">
+      {actions.map((action) => {
+        const reasonId = `action-reason-${action.key}`
+        return (
+          <li key={action.key}>
+            <button
+              type="button"
+              // aria-disabled, not disabled: the button stays reachable with
+              // the keyboard, so the reason is read out too.
+              aria-disabled={action.enabled ? undefined : true}
+              aria-describedby={action.reason ? reasonId : undefined}
+              onClick={() => {
+                if (action.enabled && action.key === 'edit') {
+                  onEdit()
+                }
+              }}
+            >
+              {action.label}
+            </button>
+            {action.reason && (
+              <span id={reasonId} className="hint">
+                {action.reason}
+              </span>
+            )}
+          </li>
+        )
+      })}
     </ul>
   )
 }
 
-/** The generated vacancy, read-only. */
-function VacancyView({ vacancy, onBack }: Props) {
+/** One vacancy: the editor for a draft, text and actions for a submitted one. */
+function VacancyView({ vacancy, onBack, onCancelled, onSubmitted }: Props) {
+  const [editing, setEditing] = useState(false)
   const sections = vacancy.sections
+  const isDraft = vacancy.status === 'draft'
+  const showEditor = sections !== null && (isDraft || editing)
 
   return (
     <article className="vacancy">
       <button type="button" onClick={onBack}>
         Back
       </button>
-      <h2>{sections?.title ?? vacancy.parameters.title}</h2>
-      <p className="hint">{describeChoices(vacancy)}</p>
+      <h2>{sections?.title || vacancy.parameters.title}</h2>
+      <p className="hint">
+        {describeChoices(vacancy)}
+        {vacancy.submitted_at &&
+          ` · Submitted on ${formatDate(vacancy.submitted_at)}`}
+      </p>
 
       {vacancy.flags.length > 0 && (
         <section className="flags" aria-labelledby="flags-heading">
@@ -65,25 +131,23 @@ function VacancyView({ vacancy, onBack }: Props) {
         </section>
       )}
 
-      {sections ? (
+      {sections === null && <p>This vacancy has no text yet.</p>}
+
+      {sections !== null && !showEditor && (
         <>
-          <h3>{SECTION_NAMES.company_intro}</h3>
-          <p>{sections.company_intro}</p>
-          <h3>{SECTION_NAMES.role_summary}</h3>
-          <p>{sections.role_summary}</p>
-          <h3>{SECTION_NAMES.responsibilities}</h3>
-          <Items items={sections.responsibilities} />
-          <h3>{SECTION_NAMES.required_qualifications}</h3>
-          <Items items={sections.required_qualifications} />
-          <h3>{SECTION_NAMES.nice_to_haves}</h3>
-          <Items items={sections.nice_to_haves} />
-          <h3>{SECTION_NAMES.what_we_offer}</h3>
-          <Items items={sections.what_we_offer} />
-          <h3>{SECTION_NAMES.location_and_work_mode}</h3>
-          <p>{sections.location_and_work_mode}</p>
+          <Actions actions={vacancy.actions} onEdit={() => setEditing(true)} />
+          <ReadOnlySections sections={sections} />
         </>
-      ) : (
-        <p>This vacancy has no text yet.</p>
+      )}
+
+      {sections !== null && showEditor && (
+        <VacancyEditor
+          vacancy={vacancy}
+          sections={sections}
+          onCancelled={onCancelled}
+          onSubmitted={onSubmitted}
+          onDone={isDraft ? undefined : () => setEditing(false)}
+        />
       )}
     </article>
   )

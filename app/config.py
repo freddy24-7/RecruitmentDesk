@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     # Makes the fake slow enough to see the spinner in development.
     fake_llm_delay_seconds: float = 0.0
 
+    # The built frontend (`npm --prefix web run build`). Served by the backend
+    # when the folder exists, so the app is one service on one origin.
+    frontend_dist: str = "web/dist"
+
     # Per-workspace limits on billable work (see app/limits/workspace.py).
     max_vacancy_generations_per_workspace: int = 10
 

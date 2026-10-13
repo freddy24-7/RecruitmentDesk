@@ -3,7 +3,7 @@
 from enum import StrEnum
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 TITLE_MAX = 120
 COMPANY_MAX = 80
@@ -80,12 +80,11 @@ class VacancyParameters(BaseModel):
         return _in_enum_order(value, WorkMode)
 
 
-class VacancySections(BaseModel):
-    """What the model must return: structured sections, not one blob (PRD F1).
+class DraftSections(BaseModel):
+    """The text of a vacancy while it is being edited.
 
-    The limits below are checked by validators, not written as JSON-schema
-    keywords. The schema sent to the API therefore stays plain (strings and
-    lists of strings), which every structured-output mode supports.
+    Every section is there, but a section may still be empty: a draft can be
+    saved half-way. Text is tidied and its length is limited.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -101,10 +100,8 @@ class VacancySections(BaseModel):
 
     @field_validator("title", "company_intro", "role_summary", "location_and_work_mode")
     @classmethod
-    def text_present(cls, value: str) -> str:
+    def tidy_text(cls, value: str) -> str:
         value = value.strip()
-        if not value:
-            raise ValueError("must not be empty")
         if len(value) > SECTION_TEXT_MAX:
             raise ValueError("too long")
         return value
@@ -113,7 +110,7 @@ class VacancySections(BaseModel):
         "responsibilities", "required_qualifications", "nice_to_haves", "what_we_offer"
     )
     @classmethod
-    def clean_items(cls, value: list[str]) -> list[str]:
+    def tidy_items(cls, value: list[str]) -> list[str]:
         items = [item.strip() for item in value if item.strip()]
         if len(items) > LIST_MAX_ITEMS:
             raise ValueError("too many items")
@@ -121,9 +118,41 @@ class VacancySections(BaseModel):
             raise ValueError("item too long")
         return items
 
-    @field_validator("responsibilities", "required_qualifications", "what_we_offer")
-    @classmethod
-    def at_least_one(cls, value: list[str]) -> list[str]:
-        if not value:
-            raise ValueError("needs at least one item")
-        return value
+
+# Sections that must have content before a vacancy can be submitted, with the
+# name the user sees. Nice-to-haves may stay empty.
+REQUIRED_SECTIONS: dict[str, str] = {
+    "title": "Title",
+    "company_intro": "About the company",
+    "role_summary": "The role",
+    "responsibilities": "Responsibilities",
+    "required_qualifications": "Required qualifications",
+    "what_we_offer": "What we offer",
+    "location_and_work_mode": "Location and work mode",
+}
+
+
+def empty_required_sections(sections: DraftSections) -> list[str]:
+    """The names of required sections that have no content."""
+    return [
+        name
+        for field, name in REQUIRED_SECTIONS.items()
+        if not getattr(sections, field)
+    ]
+
+
+class VacancySections(DraftSections):
+    """A complete vacancy: what the model must return, and what can be submitted.
+
+    Structured sections, not one blob (PRD F1). The limits are checked by
+    validators, not written as JSON-schema keywords. The schema sent to the
+    API therefore stays plain (strings and lists of strings), which every
+    structured-output mode supports.
+    """
+
+    @model_validator(mode="after")
+    def required_sections_present(self) -> "VacancySections":
+        empty = empty_required_sections(self)
+        if empty:
+            raise ValueError(f"empty sections: {', '.join(empty)}")
+        return self

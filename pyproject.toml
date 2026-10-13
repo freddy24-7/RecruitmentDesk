@@ -21,6 +21,7 @@ dev = [
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
+    "pytest-playwright>=0.10.0",
     "python-dotenv>=1.2.4",
     "ruff>=0.17.0",
 ]
@@ -28,7 +29,8 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # Tests that call the real Mistral API cost money: they run only with `-m mistral`.
-addopts = "-m 'not mistral'"
+# Browser tests need a built frontend and a browser: they run with `-m e2e`.
+addopts = "-m 'not mistral and not e2e'"
 pythonpath = ["."]
 asyncio_mode = "auto"
 # One event loop for the whole run, so the database connection pool can be shared.
@@ -36,6 +38,7 @@ asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 markers = [
     "mistral: calls the real Mistral API (costs money); run only on request",
+    "e2e: browser tests with Playwright against a running server",
 ]
 
 [tool.coverage.run]
@@ -57,6 +60,8 @@ select = ["E", "F", "I", "B", "UP", "SIM", "ASYNC", "S"]
 "scripts/check_tracked_files.py" = ["S603", "S607"]
 # The database name comes from our own test configuration, not from user input.
 "tests/integration/conftest.py" = ["S101", "S105", "S608"]
+# Table and column names come from the database catalogue, not from user input.
+"tests/integration/test_vacancy_review.py" = ["S101", "S608"]
 "migrations/**" = ["E501"]
 
 [tool.ruff.lint.isort]

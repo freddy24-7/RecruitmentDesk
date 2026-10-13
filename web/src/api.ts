@@ -52,6 +52,13 @@ export type Job = {
   vacancy_id: string | null
 }
 
+export type Action = {
+  key: string
+  label: string
+  enabled: boolean
+  reason: string | null
+}
+
 export type Vacancy = {
   id: string
   status: 'generating' | 'draft' | 'submitted' | 'failed'
@@ -59,7 +66,12 @@ export type Vacancy = {
   sections: VacancySections | null
   flags: Flag[]
   version: number
+  /** True when the text differs from what the model wrote. */
+  edited: boolean
   created_at: string
+  submitted_at: string | null
+  /** What can be done with a submitted vacancy, with the reason when it cannot. */
+  actions: Action[]
   job: Job | null
 }
 
@@ -94,7 +106,7 @@ async function toApiError(response: Response): Promise<ApiError> {
 }
 
 async function request<T>(
-  method: 'GET' | 'POST',
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   path: string,
   body?: unknown,
 ): Promise<T> {
@@ -108,6 +120,9 @@ async function request<T>(
         })
   if (!response.ok) {
     throw await toApiError(response)
+  }
+  if (response.status === 204) {
+    return undefined as T
   }
   return (await response.json()) as T
 }
@@ -146,4 +161,29 @@ export function generateVacancy(
 
 export function retryJob(jobId: string): Promise<Job> {
   return request<Job>('POST', `/api/jobs/${jobId}/retry`)
+}
+
+/** Save edited sections as a new version of the vacancy. */
+export function saveSections(
+  vacancyId: string,
+  sections: VacancySections,
+): Promise<Vacancy> {
+  return request<Vacancy>('PUT', `/api/vacancies/${vacancyId}/sections`, sections)
+}
+
+/** Go back to the text as the model wrote it. */
+export function resetVacancy(vacancyId: string): Promise<Vacancy> {
+  return request<Vacancy>('POST', `/api/vacancies/${vacancyId}/reset`)
+}
+
+export function submitVacancy(vacancyId: string): Promise<Vacancy> {
+  return request<Vacancy>('POST', `/api/vacancies/${vacancyId}/submit`)
+}
+
+/**
+ * Cancel vacancy: deletes it with all related data. Call this only after the
+ * user has confirmed in the confirmation dialog.
+ */
+export async function cancelVacancy(vacancyId: string): Promise<void> {
+  await request<unknown>('DELETE', `/api/vacancies/${vacancyId}?confirm=true`)
 }

@@ -13,6 +13,7 @@ Built in ten stages (PRD section 13). Done so far:
 - **Stage 0, skeleton:** backend with a health endpoint, database and migration setup, an empty frontend, tests and CI.
 - **Stage 1, access gate:** nothing is reachable without an access code. Codes are limited to 20 uses, counted atomically, stored only as keyed hashes, and protected against guessing.
 - **Stage 2, vacancy generation:** a dialog with a few choices starts a background job; the model writes a vacancy in structured sections. Every model call goes through one module, returns validated JSON, and leaves a usage record. Tested with a fake model only: nothing has run against the real Mistral API yet.
+- **Stage 3, review and submit:** a draft is reviewed in an editor, with versions and "Reset to generated". "Cancel vacancy" deletes it after a confirmation that says what is lost. Submitted vacancies get their own list, with actions that are disabled, with a reason, until their prerequisites exist.
 
 ## Run it locally
 
@@ -41,6 +42,8 @@ The model version is pinned in `MISTRAL_MODEL_VACANCY`. A model also needs a pri
 
 Jobs run inside the web process, so run exactly one process (no `--workers`, one replica).
 
+The backend also serves the built frontend from `web/dist` when that folder exists. After `npm --prefix web run build`, the whole app is on http://localhost:8000 without the Vite dev server.
+
 ## Access codes
 
 The whole app sits behind an access code. Codes are managed with a script, not a web page:
@@ -66,6 +69,10 @@ uv run pytest tests/unit tests/integration --cov --cov-fail-under=70   # needs t
 uv run python scripts/check_tracked_files.py    # no access codes or .env files tracked by Git
 
 uv run pytest -m mistral tests/real -s             # ONE real Mistral call; costs money, needs MISTRAL_API_KEY
+
+npm --prefix web run build                         # the browser tests use the built frontend
+uv run playwright install chromium                 # once
+uv run pytest -m e2e tests/e2e                     # browser tests: real frontend and backend, fake model
 
 npm --prefix web run lint
 npm --prefix web run build      # type check and production build

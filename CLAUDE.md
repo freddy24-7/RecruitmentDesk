@@ -111,6 +111,7 @@ npm --prefix web install && npm --prefix web run dev   # frontend dev server on 
 uv run pytest tests/unit tests/integration    # fast tests, no network. They create and use their own database (<name>_test) with fake secrets
 uv run pytest tests/unit tests/integration --cov --cov-fail-under=70   # as CI runs them, with the coverage gate
 uv run pytest -m mistral tests/real -s        # real Mistral API, costs money: only on request, never in CI
+npm --prefix web run build && uv run pytest -m e2e tests/e2e   # browser tests (first time: uv run playwright install chromium)
 uv run ruff check . && uv run ruff format --check . && uv run mypy .
 uv run python scripts/check_tracked_files.py  # fails if Git tracks a codes file or a .env file
 uv run python scripts/manage_codes.py status  # uses per code label (never prints the codes)
@@ -122,7 +123,6 @@ npm --prefix web run lint && npm --prefix web run build && npm --prefix web test
 Not created yet (add when the stage arrives):
 
 ```bash
-uv run pytest tests/e2e                       # browser tests (stage 3)
 uv run python scripts/evaluate_lists.py --services fake    # evaluation code with the fake model (stage 8)
 ```
 
