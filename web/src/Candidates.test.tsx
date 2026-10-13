@@ -105,7 +105,17 @@ function backend(initial: Partial<Vacancy> = {}) {
   const state: { vacancy: Vacancy } = { vacancy: { ...SUBMITTED, ...initial } }
   const calls = mockApi({
     'GET /api/session': () => json(200, SESSION),
-    'GET /api/vacancies': () => json(200, [state.vacancy]),
+    // As on the server: the latest candidate job is also reported on its own.
+    'GET /api/vacancies': () =>
+      json(200, [
+        {
+          ...state.vacancy,
+          candidate_job:
+            state.vacancy.job?.type === 'candidate_generation'
+              ? state.vacancy.job
+              : state.vacancy.candidate_job,
+        },
+      ]),
     'POST /api/vacancies/vacancy-1/candidates': (body) => {
       const { count } = body as { count: number }
       const started = candidateJob({ progress_total: count })

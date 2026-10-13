@@ -96,7 +96,9 @@ NOT_BUILT_YET = "Not available yet in this version of the demo."
 JOB_RUNNING = "Wait until the running job has finished."
 
 
-def available_actions(vacancy: Vacancy, *, job_running: bool) -> list[Action]:
+def available_actions(
+    vacancy: Vacancy, *, job_running: bool, has_candidates: bool, has_script: bool
+) -> list[Action]:
     """The actions on a submitted vacancy, each enabled or disabled with a reason.
 
     One function decides this, so the API and the screen cannot disagree. An
@@ -104,27 +106,22 @@ def available_actions(vacancy: Vacancy, *, job_running: bool) -> list[Action]:
     """
     if vacancy.status != SUBMITTED:
         return []
+    busy = JOB_RUNNING if job_running else None
+
+    # Both lists need candidates and a script (PRD F6).
+    if not has_candidates and not has_script:
+        lists_need = "Generate candidates and a selection script first."
+    elif not has_candidates:
+        lists_need = "Generate candidates first."
+    elif not has_script:
+        lists_need = "Generate a selection script first."
+    else:
+        lists_need = NOT_BUILT_YET
+
     return [
         Action("edit", "Edit vacancy", enabled=True),
-        Action(
-            "generate_candidates",
-            "Generate candidates",
-            enabled=not job_running,
-            reason=JOB_RUNNING if job_running else None,
-        ),
-        Action(
-            "generate_script", "Generate selection script", False, reason=NOT_BUILT_YET
-        ),
-        Action(
-            "generate_long_list",
-            "Generate long-list",
-            False,
-            reason="Generate candidates and a selection script first.",
-        ),
-        Action(
-            "generate_short_list",
-            "Generate short-list",
-            False,
-            reason="Generate candidates and a selection script first.",
-        ),
+        Action("generate_candidates", "Generate candidates", not job_running, busy),
+        Action("generate_script", "Generate selection script", not job_running, busy),
+        Action("generate_long_list", "Generate long-list", False, lists_need),
+        Action("generate_short_list", "Generate short-list", False, lists_need),
     ]

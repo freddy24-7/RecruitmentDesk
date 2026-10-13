@@ -18,7 +18,8 @@ from app.db import get_session
 from app.jobs.messages import message_for
 from app.jobs.models import ACTIVE, Job
 from app.jobs.runner import JobRunner
-from app.limits.workspace import CANDIDATE_GENERATION, LimitReached
+from app.limits.workspace import CANDIDATE_GENERATION, SCRIPT_PROPOSAL, LimitReached
+from app.script import service as script_service
 from app.vacancy import review, service
 from app.vacancy.deletion import ConfirmationRequired, delete_vacancy
 from app.vacancy.models import DRAFT, FAILED, Vacancy
@@ -76,6 +77,16 @@ class CandidatesOut(BaseModel):
     out_of_date: bool
 
 
+class ScriptStateOut(BaseModel):
+    # A script was saved for this vacancy.
+    exists: bool
+    # True when the vacancy was edited after the script was saved.
+    out_of_date: bool
+    item_count: int
+    # A proposal from the model for the current text is waiting to be reviewed.
+    proposal_ready: bool
+
+
 class VacancyOut(BaseModel):
     id: uuid.UUID
     status: str
@@ -90,6 +101,10 @@ class VacancyOut(BaseModel):
     # What can be done with a submitted vacancy, with the reason when it cannot.
     actions: list[ActionOut]
     candidates: CandidatesOut
+    script: ScriptStateOut
+    # The latest job of each kind, so one does not hide the state of the other.
+    candidate_job: JobOut | None
+    script_job: JobOut | None
     # The most recent job for this vacancy.
     job: JobOut | None
 
@@ -121,6 +136,18 @@ def job_out(job: Job) -> JobOut:
     )
 
 
+async def _latest_job(
+    session: AsyncSession, vacancy_id: uuid.UUID, job_type: str
+) -> Job | None:
+    job: Job | None = await session.scalar(
+        select(Job)
+        .where(Job.vacancy_id == vacancy_id, Job.type == job_type)
+        .order_by(Job.created_at.desc())
+        .limit(1)
+    )
+    return job
+
+
 async def _vacancy_out(session: AsyncSession, vacancy: Vacancy) -> VacancyOut:
     job = await session.scalar(
         select(Job)
@@ -136,6 +163,10 @@ async def _vacancy_out(session: AsyncSession, vacancy: Vacancy) -> VacancyOut:
         )
     ).one()
     job_running = job is not None and job.status in ACTIVE
+    script = await script_service.read_script(session, vacancy.id)
+    proposal = await script_service.latest_proposal(session, vacancy.id)
+    candidate_job = await _latest_job(session, vacancy.id, CANDIDATE_GENERATION)
+    script_job = await _latest_job(session, vacancy.id, SCRIPT_PROPOSAL)
     return VacancyOut(
         id=vacancy.id,
         status=vacancy.status,
@@ -153,13 +184,28 @@ async def _vacancy_out(session: AsyncSession, vacancy: Vacancy) -> VacancyOut:
                 enabled=action.enabled,
                 reason=action.reason,
             )
-            for action in review.available_actions(vacancy, job_running=job_running)
+            for action in review.available_actions(
+                vacancy,
+                job_running=job_running,
+                has_candidates=ready > 0,
+                has_script=script is not None,
+            )
         ],
         candidates=CandidatesOut(
             count=ready,
             out_of_date=oldest_version is not None
             and oldest_version != vacancy.version,
         ),
+        script=ScriptStateOut(
+            exists=script is not None,
+            out_of_date=script is not None
+            and script.vacancy_version != vacancy.version,
+            item_count=len(script.items) if script else 0,
+            proposal_ready=proposal is not None
+            and proposal.vacancy_version == vacancy.version,
+        ),
+        candidate_job=job_out(candidate_job) if candidate_job else None,
+        script_job=job_out(script_job) if script_job else None,
         job=job_out(job) if job else None,
     )
 
@@ -349,6 +395,8 @@ async def retry_job(
     try:
         if job.type == CANDIDATE_GENERATION:
             queued = await candidate_service.retry_generation(session, job)
+        elif job.type == SCRIPT_PROPOSAL:
+            queued = await script_service.retry_proposal(session, job)
         else:
             queued = await service.retry_generation(session, job, settings)
     except LimitReached as limit:

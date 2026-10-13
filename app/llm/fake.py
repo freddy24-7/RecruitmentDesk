@@ -117,10 +117,46 @@ def fake_cv(request: LlmRequest) -> str:
     )
 
 
+def fake_script(request: LlmRequest) -> str:
+    """Screening criteria that match `fake_vacancy` and `fake_vacancy_profile`."""
+    return json.dumps(
+        {
+            "items": [
+                {
+                    "any_of": ["Microsoft Azure", "AWS"],
+                    "min_years": 3,
+                    "hard": True,
+                    "reason": "Experience with Microsoft Azure",
+                },
+                {
+                    "any_of": ["Terraform"],
+                    "min_years": 2,
+                    "hard": True,
+                    "reason": "3 years of experience in a comparable role",
+                },
+                {
+                    "any_of": ["Kubernetes"],
+                    "min_years": 0,
+                    "hard": False,
+                    "reason": "Experience in a regulated sector",
+                },
+                {
+                    "any_of": ["Scrum"],
+                    "min_years": 0,
+                    "hard": False,
+                    # Not in the vacancy: the check in code will say so.
+                    "reason": "Agile ways of working are a plus",
+                },
+            ]
+        }
+    )
+
+
 DEFAULT_RESPONDERS: dict[str, Responder] = {
     "vacancy": fake_vacancy,
     "vacancy_profile": fake_vacancy_profile,
     "cv": fake_cv,
+    "script": fake_script,
 }
 
 

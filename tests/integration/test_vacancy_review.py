@@ -301,13 +301,13 @@ async def test_submitted_vacancy_lists_its_actions_with_reasons(
     assert actions["edit"]["enabled"] is True
     assert actions["edit"]["reason"] is None
     assert actions["generate_candidates"]["enabled"] is True
-    # Visible but disabled, each with the reason.
-    for key in ("generate_script", "generate_long_list", "generate_short_list"):
+    assert actions["generate_script"]["enabled"] is True
+    # Visible but disabled, each with the reason: nothing to make a list from.
+    for key in ("generate_long_list", "generate_short_list"):
         assert actions[key]["enabled"] is False
-        assert actions[key]["reason"]
-    assert actions["generate_long_list"]["reason"] == (
-        "Generate candidates and a selection script first."
-    )
+        assert actions[key]["reason"] == (
+            "Generate candidates and a selection script first."
+        )
     assert actions["generate_short_list"]["label"] == "Generate short-list"
 
 

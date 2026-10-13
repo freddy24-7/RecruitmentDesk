@@ -3,19 +3,26 @@ import {
   cancelVacancy,
   generateCandidates,
   getCandidate,
+  getScript,
   listCandidates,
   listVacancies,
+  proposeScript,
   resetVacancy,
   retryJob,
+  saveScript,
   saveSections,
   submitVacancy,
 } from './api.ts'
-import type { Vacancy, VacancySections } from './api.ts'
+import type { Job, ScriptItem, Vacancy, VacancySections } from './api.ts'
 
 export const VACANCIES_KEY = ['vacancies']
 
+export function isRunning(job: Job | null): boolean {
+  return job?.status === 'queued' || job?.status === 'running'
+}
+
 export function jobIsRunning(vacancy: Vacancy): boolean {
-  return vacancy.job?.status === 'queued' || vacancy.job?.status === 'running'
+  return isRunning(vacancy.job)
 }
 
 // How often to ask for news while a job runs. Short in tests, so they are fast.
@@ -127,5 +134,40 @@ export function useCandidate(vacancyId: string, candidateId: string) {
   return useQuery({
     queryKey: ['candidate', vacancyId, candidateId],
     queryFn: () => getCandidate(vacancyId, candidateId),
+  })
+}
+
+/**
+ * The script and the latest proposal. The key includes the proposal job and
+ * the vacancy version, so it is fetched again when either changes.
+ */
+export function useScript(vacancy: Vacancy, enabled: boolean) {
+  return useQuery({
+    queryKey: [
+      'script',
+      vacancy.id,
+      vacancy.version,
+      vacancy.script_job?.id,
+      vacancy.script_job?.status,
+      vacancy.script.exists,
+    ],
+    queryFn: () => getScript(vacancy.id),
+    enabled,
+  })
+}
+
+export function useProposeScript(vacancyId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => proposeScript(vacancyId),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: VACANCIES_KEY }),
+  })
+}
+
+export function useSaveScript(vacancyId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (items: ScriptItem[]) => saveScript(vacancyId, items),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: VACANCIES_KEY }),
   })
 }

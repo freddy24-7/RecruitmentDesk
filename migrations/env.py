@@ -23,6 +23,7 @@ import app.access.models  # noqa: E402, F401
 import app.candidates.models  # noqa: E402, F401
 import app.jobs.models  # noqa: E402, F401
 import app.llm.usage  # noqa: E402, F401
+import app.script.models  # noqa: E402, F401
 import app.vacancy.models  # noqa: E402, F401
 
 target_metadata = Base.metadata

@@ -2,13 +2,14 @@ import { useState } from 'react'
 import type { Action, Vacancy, VacancySections } from './api.ts'
 import CandidateProgress from './CandidateProgress.tsx'
 import GenerateCandidatesDialog from './GenerateCandidatesDialog.tsx'
+import SelectionScriptDialog from './SelectionScriptDialog.tsx'
 import {
   LIST_SECTIONS,
   SECTION_NAMES,
   SECTION_ORDER,
   sectionName,
 } from './sections.ts'
-import { describeChoices } from './vacancies.ts'
+import { describeChoices, isRunning, useProposeScript } from './vacancies.ts'
 import VacancyEditor from './VacancyEditor.tsx'
 
 type Props = {
@@ -108,6 +109,8 @@ function VacancyView({
 }: Props) {
   const [editing, setEditing] = useState(false)
   const [generatingCandidates, setGeneratingCandidates] = useState(false)
+  const [editingScript, setEditingScript] = useState(false)
+  const proposeScript = useProposeScript(vacancy.id)
   const sections = vacancy.sections
   const isDraft = vacancy.status === 'draft'
   const showEditor = sections !== null && (isDraft || editing)
@@ -152,6 +155,18 @@ function VacancyView({
                 setEditing(true)
               } else if (key === 'generate_candidates') {
                 setGeneratingCandidates(true)
+              } else if (key === 'generate_script') {
+                // The dialog opens with a proposal from the model. Ask for one
+                // only when there is nothing to show yet: a saved script or a
+                // waiting proposal is not paid for twice.
+                const nothingYet =
+                  !vacancy.script.exists &&
+                  !vacancy.script.proposal_ready &&
+                  !isRunning(vacancy.script_job)
+                if (nothingYet) {
+                  proposeScript.mutate()
+                }
+                setEditingScript(true)
               }
             }}
           />
@@ -159,6 +174,21 @@ function VacancyView({
             vacancy={vacancy}
             onViewCandidates={onViewCandidates}
           />
+          {vacancy.script.exists && (
+            <p className={vacancy.script.out_of_date ? 'flags' : undefined} role="note">
+              {vacancy.script.out_of_date ? (
+                <>
+                  <strong>Selection script out of date.</strong> The vacancy
+                  was edited after the script was saved. Open the selection
+                  script to review it.
+                </>
+              ) : (
+                `Selection script ready (${vacancy.script.item_count} ${
+                  vacancy.script.item_count === 1 ? 'item' : 'items'
+                }).`
+              )}
+            </p>
+          )}
           <ReadOnlySections sections={sections} />
         </>
       )}
@@ -173,6 +203,12 @@ function VacancyView({
         />
       )}
 
+      <SelectionScriptDialog
+        vacancy={vacancy}
+        open={editingScript}
+        onOpenChange={setEditingScript}
+        propose={proposeScript}
+      />
       <GenerateCandidatesDialog
         vacancy={vacancy}
         open={generatingCandidates}

@@ -13,13 +13,18 @@ from app.candidates.service import CandidateGenerator
 from app.config import get_settings
 from app.db import get_sessionmaker
 from app.jobs.runner import JobRunner, mark_interrupted_jobs
-from app.limits.workspace import CANDIDATE_GENERATION, VACANCY_GENERATION
+from app.limits.workspace import (
+    CANDIDATE_GENERATION,
+    SCRIPT_PROPOSAL,
+    VACANCY_GENERATION,
+)
 from app.llm.base import LlmClient
 from app.llm.pricing import require_known_price
 from app.llm.service import LlmService, build_client
 from app.log import configure_logging
+from app.script.service import ScriptProposer
 from app.vacancy.service import VacancyGenerator, fail_generating_vacancies
-from app.web import access, candidates, health, vacancies
+from app.web import access, candidates, health, script, vacancies
 from app.web.errors import add_error_handlers
 
 log = structlog.get_logger()
@@ -46,6 +51,7 @@ def create_app(llm_client: LlmClient | None = None) -> FastAPI:
     settings = get_settings()
     require_known_price(settings.mistral_model_vacancy)
     require_known_price(settings.mistral_model_cv)
+    require_known_price(settings.mistral_model_script)
 
     # The interactive docs and the OpenAPI schema are switched off: nothing but
     # the code entry endpoint and the health check is reachable without a session.
@@ -66,6 +72,7 @@ def create_app(llm_client: LlmClient | None = None) -> FastAPI:
         handlers={
             VACANCY_GENERATION: VacancyGenerator(llm, settings),
             CANDIDATE_GENERATION: CandidateGenerator(llm, settings, sessionmaker),
+            SCRIPT_PROPOSAL: ScriptProposer(llm, settings),
         },
     )
 
@@ -78,6 +85,7 @@ def create_app(llm_client: LlmClient | None = None) -> FastAPI:
     protected.include_router(access.router)
     protected.include_router(vacancies.router)
     protected.include_router(candidates.router)
+    protected.include_router(script.router)
     app.include_router(protected)
 
     # Last, so it never shadows an API route. The page itself is public: it is

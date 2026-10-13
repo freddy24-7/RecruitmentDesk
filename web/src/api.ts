@@ -74,6 +74,16 @@ export type Vacancy = {
   actions: Action[]
   /** Candidates whose CV is ready, and whether the vacancy changed since. */
   candidates: { count: number; out_of_date: boolean }
+  /** The saved selection script, and whether a proposal is waiting. */
+  script: {
+    exists: boolean
+    out_of_date: boolean
+    item_count: number
+    proposal_ready: boolean
+  }
+  /** The latest job of each kind, so one does not hide the state of the other. */
+  candidate_job: Job | null
+  script_job: Job | null
   job: Job | null
 }
 
@@ -114,6 +124,28 @@ export type Cv = {
 export type CandidateDetail = CandidateSummary & {
   out_of_date: boolean
   cv: Cv
+}
+
+export type ScriptItem = {
+  /** Alternatives: any one of these keywords meets the item. */
+  any_of: string[]
+  min_years: number
+  kind: 'hard' | 'soft'
+  /** The sentence in the vacancy the item is based on. Empty for added items. */
+  reason: string
+  /** Set by the server: is the reason really in the vacancy text? */
+  grounded: boolean
+  enabled: boolean
+}
+
+export type Script = {
+  saved: {
+    items: ScriptItem[]
+    revision: number
+    out_of_date: boolean
+    updated_at: string
+  } | null
+  proposal: { items: ScriptItem[]; current: boolean } | null
 }
 
 type ErrorBody = {
@@ -256,4 +288,19 @@ export function getCandidate(
     'GET',
     `/api/vacancies/${vacancyId}/candidates/${candidateId}`,
   )
+}
+
+/** The saved script and the model's latest proposal, for the dialog. */
+export function getScript(vacancyId: string): Promise<Script> {
+  return request<Script>('GET', `/api/vacancies/${vacancyId}/script`)
+}
+
+/** Ask the model for a proposal, in the background. Nothing is saved as script. */
+export function proposeScript(vacancyId: string): Promise<Job> {
+  return request<Job>('POST', `/api/vacancies/${vacancyId}/script/proposal`)
+}
+
+/** Submit the dialog: save the script for the current version of the vacancy. */
+export function saveScript(vacancyId: string, items: ScriptItem[]): Promise<Script> {
+  return request<Script>('PUT', `/api/vacancies/${vacancyId}/script`, { items })
 }

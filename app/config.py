@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     # Exact, pinned model versions. No `-latest` aliases (CLAUDE.md).
     mistral_model_vacancy: str = "mistral-small-2603"
     mistral_model_cv: str = "mistral-small-2603"
+    mistral_model_script: str = "mistral-small-2603"
     llm_timeout_seconds: int = 60
     # How many CVs are written at the same time. Low, because of rate limits.
     cv_concurrency: int = 4
@@ -60,6 +61,9 @@ class Settings(BaseSettings):
     max_vacancy_generations_per_workspace: int = 10
     # Candidates one workspace may generate in total, over all its vacancies.
     max_candidates_per_workspace: int = 300
+
+    # How often one workspace may ask the model for a selection script.
+    max_script_proposals_per_workspace: int = 20
 
     # Blueprint sampling is seeded, so a pool can be reproduced.
     blueprint_seed: int = 20261013

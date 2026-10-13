@@ -14,6 +14,7 @@ from app.jobs.models import ACTIVE, Job
 
 VACANCY_GENERATION = "vacancy_generation"
 CANDIDATE_GENERATION = "candidate_generation"
+SCRIPT_PROPOSAL = "script_proposal"
 # A failing job cannot be retried for ever: each try can cost model calls.
 MAX_ATTEMPTS_PER_JOB = 3
 
@@ -80,6 +81,25 @@ async def check_can_generate_candidates(
             "limit_reached",
             f"This demo workspace can generate {limit} candidates in total. "
             f"There is room for {max(left, 0)} more.",
+        )
+
+
+async def check_can_propose_script(
+    session: AsyncSession, workspace_id: uuid.UUID, settings: Settings
+) -> None:
+    """Raise LimitReached if this workspace may not ask for another proposal."""
+    await check_no_job_running(session, workspace_id)
+    starts = await session.scalar(
+        select(func.coalesce(func.sum(Job.attempts), 0)).where(
+            Job.workspace_id == workspace_id, Job.type == SCRIPT_PROPOSAL
+        )
+    )
+    limit = settings.max_script_proposals_per_workspace
+    if (starts or 0) >= limit:
+        raise LimitReached(
+            "limit_reached",
+            f"This demo workspace has used all {limit} script proposals. "
+            "You can still edit and save the script by hand.",
         )
 
 

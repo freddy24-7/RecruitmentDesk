@@ -41,6 +41,9 @@ class Job(Base):
     attempts: Mapped[int] = mapped_column(default=1)
     # What the job was asked to do (for example how many candidates).
     params: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    # What the job produced, when that is not stored elsewhere (for example a
+    # proposal that the user has not saved yet).
+    result: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True))
     progress_done: Mapped[int] = mapped_column(default=0)
     progress_total: Mapped[int] = mapped_column(default=1)
     error_kind: Mapped[str | None] = mapped_column(String(32))

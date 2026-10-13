@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import type { Vacancy } from './api.ts'
-import { CANDIDATE_JOB } from './CandidateProgress.tsx'
 import CandidatesPage from './CandidatesPage.tsx'
 import CandidateView from './CandidateView.tsx'
 import GenerateVacancyDialog from './GenerateVacancyDialog.tsx'
 import Spinner from './Spinner.tsx'
-import { describeChoices, jobIsRunning, useVacancies } from './vacancies.ts'
+import { describeChoices, isRunning, useVacancies } from './vacancies.ts'
 import VacancyStatus from './VacancyStatus.tsx'
 import VacancyView from './VacancyView.tsx'
 
@@ -19,9 +18,10 @@ type View =
 /** Short labels on a submitted vacancy: what exists for it already (PRD F3). */
 function StatusChips({ vacancy }: { vacancy: Vacancy }) {
   const chips: string[] = []
-  if (vacancy.job?.type === CANDIDATE_JOB && jobIsRunning(vacancy)) {
+  const creating = vacancy.candidate_job
+  if (creating && isRunning(creating)) {
     chips.push(
-      `creating candidates: ${vacancy.job.progress_done} of ${vacancy.job.progress_total}`,
+      `creating candidates: ${creating.progress_done} of ${creating.progress_total}`,
     )
   } else if (vacancy.candidates.count > 0) {
     chips.push(
@@ -30,6 +30,9 @@ function StatusChips({ vacancy }: { vacancy: Vacancy }) {
     if (vacancy.candidates.out_of_date) {
       chips.push('candidates out of date')
     }
+  }
+  if (vacancy.script.exists) {
+    chips.push(vacancy.script.out_of_date ? 'script out of date' : 'script ready')
   }
   if (chips.length === 0) {
     return null

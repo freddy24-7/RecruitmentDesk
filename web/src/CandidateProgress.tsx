@@ -1,13 +1,11 @@
 import type { Vacancy } from './api.ts'
 import Spinner from './Spinner.tsx'
-import { jobIsRunning, useRetryJob } from './vacancies.ts'
+import { isRunning, useRetryJob } from './vacancies.ts'
 
 type Props = {
   vacancy: Vacancy
   onViewCandidates: () => void
 }
-
-export const CANDIDATE_JOB = 'candidate_generation'
 
 /**
  * Where the candidates of a vacancy stand: being created ("x of N"), failed
@@ -15,10 +13,11 @@ export const CANDIDATE_JOB = 'candidate_generation'
  */
 function CandidateProgress({ vacancy, onViewCandidates }: Props) {
   const retry = useRetryJob()
-  const job = vacancy.job?.type === CANDIDATE_JOB ? vacancy.job : null
+  // The latest candidate job, also when another kind of job came after it.
+  const job = vacancy.candidate_job
   const { count, out_of_date: outOfDate } = vacancy.candidates
 
-  if (job && jobIsRunning(vacancy)) {
+  if (job && isRunning(job)) {
     return (
       <Spinner
         label={`${job.progress_done} of ${job.progress_total} candidates created`}

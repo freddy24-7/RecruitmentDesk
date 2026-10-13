@@ -138,10 +138,13 @@ The app will be online and calls a paid model, so nothing is reachable without a
 - The CV text must not include birth date, photo, gender, marital status or nationality.
 
 ### F5 Generate selection script
-- A dialog opens with a **proposal from the model**, based on the vacancy text: a list of keywords (for example "Microsoft Azure"), a **required number of years of experience** per keyword where it makes sense, and a flag for each: **hard** or **soft** requirement. Include a short reason per item, taken from the vacancy text.
-- The user can edit the keyword, change the years, flip hard or soft, remove items, and add new ones. Buttons: **Cancel** (nothing saved) and **Submit** (saves the script).
-- A saved script is linked to the version of the vacancy it was made from.
-- Definitions: a **hard** requirement must be met for a candidate to be listed (unless there are too few candidates who meet them, in which case this is shown as a flag). A **soft** requirement adds to the score but is not required.
+- A dialog opens with a **proposal from the model**, based on the vacancy text: a list of items. Each item has one or more **keywords** (for example "Microsoft Azure"), a **required number of years of experience** where it makes sense, and a flag: **hard** or **soft** requirement. Each item also carries a short reason: the sentence from the vacancy it is based on.
+- **Alternatives.** An item may hold up to four keywords that can replace each other: "AWS / Azure / GCP, 5 years, hard". A candidate meets the item with any one of them. Years are not added up across alternatives: one alternative must reach the years on its own.
+- **The reason is checked by code.** The model is asked to quote the vacancy. Code looks the quote up in the vacancy text. A reason that is not found is kept, and shown as not found in the vacancy.
+- The proposal is made by a background job, with a spinner. A proposal is not saved as the script. A waiting proposal for the current vacancy text is reused when the dialog is opened again.
+- The user can edit the keywords, change the years, flip hard or soft, remove items, and add new ones. Buttons: **Cancel** (nothing saved) and **Submit** (saves the script).
+- A saved script is linked to the version of the vacancy it was made from. If the vacancy is edited afterwards, the script is marked out of date. Submitting again saves it for the current text.
+- Definitions: a **hard** requirement must be met for a candidate to be listed (unless there are too few candidates who meet them, in which case this is shown as a flag). A **soft** requirement adds to the score but is not required. Both are applied in one function.
 
 ### F6 Long list and short list
 - Both are available only when the vacancy, the candidates and a script exist.
@@ -311,12 +314,14 @@ Changes and additions I made, so you can accept or reject each one:
 11. Details of the access gate: what counts as a "use" (a new session, not a page load), atomic counting, brute-force limits, hashed storage with a pepper, a management script, and a computed worst-case spend per code.
 12. Interview questions for short-listed candidates (F8).
 13. A vacancy profile call, and job timelines built by code, so that the planted years of experience per skill are exact (F4).
+14. Alternatives in a script item, and a check in code that each item's reason is a quote from the vacancy (F5).
 
 ## 17. Open decisions
 
 Decided (2026-10-13):
 
 - "Selection script" is a criteria set. Interview questions are a separate add-on (F8).
+- A script item may hold alternative keywords; any one of them meets it, and years are not added up across them (F5).
 - Frontend: React with TypeScript (Vite).
 - Access gate: one "use" means one new session.
 - Contact link shown when a code is used up: the developer's LinkedIn profile, set through an environment variable.

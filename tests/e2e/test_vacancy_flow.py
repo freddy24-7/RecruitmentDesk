@@ -220,3 +220,71 @@ def test_generate_candidates_and_read_a_cv(page: Page, app_url: str) -> None:
     expect(
         page.get_by_role("dialog").get_by_role("button", name="Replace candidates")
     ).to_be_visible()
+
+
+def test_propose_edit_and_save_a_selection_script(page: Page, app_url: str) -> None:
+    submitted_vacancy(page, app_url)
+
+    page.get_by_role("button", name="Generate selection script").click()
+    dialog = page.get_by_role("dialog", name="Selection script")
+    # The dialog opens with a proposal from the model.
+    expect(dialog.get_by_role("status")).to_have_text(
+        "Reading the vacancy and proposing criteria…"
+    )
+    first = dialog.get_by_role("group", name="Item 1")
+    expect(first.get_by_label("Keywords")).to_have_value(
+        "Microsoft Azure, AWS", timeout=15_000
+    )
+    expect(first.get_by_label("Years")).to_have_value("3")
+    expect(first.get_by_label("Requirement")).to_have_value("hard")
+    expect(first).to_contain_text("From the vacancy: “Experience with Microsoft Azure”")
+    expect(dialog.get_by_role("group", name="Item 4")).to_contain_text(
+        "not found in the vacancy text"
+    )
+
+    # Cancel saves nothing.
+    first.get_by_label("Years").fill("9")
+    dialog.get_by_role("button", name="Cancel").click()
+    expect(dialog).to_have_count(0)
+    expect(page.get_by_text("Selection script ready")).to_have_count(0)
+    assert (
+        page.request.get(f"{app_url}/api/vacancies").json()[0]["script"]["exists"]
+        is False
+    )
+
+    # Reopening shows the same proposal again, without asking the model twice.
+    page.get_by_role("button", name="Generate selection script").click()
+    first = dialog.get_by_role("group", name="Item 1")
+    expect(first.get_by_label("Years")).to_have_value("3")
+
+    # Edit, flip, remove, add, and submit.
+    first.get_by_label("Keywords").fill("Microsoft Azure, AWS, GCP")
+    first.get_by_label("Years").fill("5")
+    dialog.get_by_role("group", name="Item 2").get_by_label(
+        "Requirement"
+    ).select_option("soft")
+    dialog.get_by_role("button", name="Remove item 4").click()
+    dialog.get_by_role("button", name="Add item").click()
+    dialog.get_by_role("group", name="Item 4").get_by_label("Keywords").fill("Python")
+    dialog.get_by_role("button", name="Submit").click()
+
+    expect(dialog).to_have_count(0)
+    expect(page.get_by_text("Selection script ready (4 items).")).to_be_visible()
+
+    # The saved script is what opens next time.
+    page.get_by_role("button", name="Generate selection script").click()
+    expect(dialog).to_contain_text("The saved script for this vacancy.")
+    expect(
+        dialog.get_by_role("group", name="Item 1").get_by_label("Keywords")
+    ).to_have_value("Microsoft Azure, AWS, GCP")
+    expect(
+        dialog.get_by_role("group", name="Item 4").get_by_label("Keywords")
+    ).to_have_value("Python")
+    page.keyboard.press("Escape")
+
+    # Editing the vacancy marks the script as out of date.
+    page.get_by_role("button", name="Edit vacancy").click()
+    page.get_by_label("The role").fill("A different role altogether.")
+    page.get_by_role("button", name="Save changes").click()
+    page.get_by_role("button", name="Stop editing").click()
+    expect(page.get_by_text("Selection script out of date.")).to_be_visible()
