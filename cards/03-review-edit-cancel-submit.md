@@ -35,6 +35,8 @@ Date: 2026-10-13
 - The browser flow was run end to end against the real backend with the fake model: code entry, generate, spinner, review, edit, save, submit, open the submitted vacancy, reload. Screenshots of the dialog, the editor and the submitted view were checked by eye.
 - The cookie is marked Secure and still works on `http://localhost` in Chromium, so the browser tests run with the production cookie settings.
 
+- **The first CI run of the browser tests failed.** They assumed the test database already existed. On the development machine it did, because the integration tests had created it; in CI the browser tests run as a separate job on an empty server. Both suites now create the database through one shared helper, and both were re-run locally against a database name that did not exist yet.
+
 ## Still open
 
 - **Still nothing has run against the real Mistral API.** The account is on the free plan, where API keys are not active. One real call is prepared (`uv run pytest -m mistral tests/real -s`).

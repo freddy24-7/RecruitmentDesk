@@ -60,6 +60,7 @@ select = ["E", "F", "I", "B", "UP", "SIM", "ASYNC", "S"]
 "scripts/check_tracked_files.py" = ["S603", "S607"]
 # The database name comes from our own test configuration, not from user input.
 "tests/integration/conftest.py" = ["S101", "S105", "S608"]
+"tests/database.py" = ["S101", "S608"]
 # Table and column names come from the database catalogue, not from user input.
 "tests/integration/test_vacancy_review.py" = ["S101", "S608"]
 "migrations/**" = ["E501"]

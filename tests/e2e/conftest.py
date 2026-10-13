@@ -27,6 +27,7 @@ from sqlalchemy.pool import NullPool
 
 from app.access.codes import hash_code
 from app.access.models import AccessCode
+from tests.database import create_test_database_if_missing
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FRONTEND = REPO_ROOT / "web" / "dist"
@@ -79,13 +80,17 @@ def server() -> Iterator[str]:
         "LLM_PROVIDER": "fake",
         "FAKE_LLM_DELAY_SECONDS": FAKE_DELAY_SECONDS,
     }
-    subprocess.run(  # noqa: S603
+    # This job may be the first to use the test database (as in CI).
+    create_test_database_if_missing()
+    migration = subprocess.run(  # noqa: S603
         [sys.executable, "-m", "alembic", "upgrade", "head"],
         cwd=REPO_ROOT,
         env=env,
-        check=True,
         capture_output=True,
+        text=True,
     )
+    if migration.returncode != 0:
+        pytest.fail(f"Migrations failed:\n{migration.stderr[-2000:]}")
 
     port = _free_port()
     address = f"http://localhost:{port}"

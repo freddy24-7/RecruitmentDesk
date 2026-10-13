@@ -1,6 +1,5 @@
 """Fixtures for tests that use PostgreSQL and the HTTP API."""
 
-import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -11,8 +10,7 @@ from alembic import command
 from alembic.config import Config
 from fastapi import FastAPI
 from sqlalchemy import select, text
-from sqlalchemy.engine import URL, make_url
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.access.codes import hash_code
 from app.access.models import AccessCode
@@ -21,6 +19,7 @@ from app.db import get_sessionmaker
 from app.jobs.runner import JobRunner
 from app.llm.fake import FakeLlm
 from app.main import create_app
+from tests.database import create_test_database_if_missing
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -37,29 +36,10 @@ def alembic_config() -> Config:
     return Config(str(REPO_ROOT / "alembic.ini"))
 
 
-async def _create_database_if_missing(url: URL) -> None:
-    admin = create_async_engine(
-        url.set(database="postgres"), isolation_level="AUTOCOMMIT"
-    )
-    try:
-        async with admin.connect() as connection:
-            exists = await connection.scalar(
-                text("SELECT 1 FROM pg_database WHERE datname = :name"),
-                {"name": url.database},
-            )
-            if not exists:
-                await connection.execute(text(f'CREATE DATABASE "{url.database}"'))
-    finally:
-        await admin.dispose()
-
-
 @pytest.fixture(scope="session", autouse=True)
 def database() -> None:
     """Create the test database once and bring it to the latest migration."""
-    url = make_url(get_settings().database_url)
-    assert url.database is not None
-    assert url.database.endswith("_test"), "tests must not run on a real database"
-    asyncio.run(_create_database_if_missing(url))
+    create_test_database_if_missing()
     command.upgrade(alembic_config(), "head")
 
 
