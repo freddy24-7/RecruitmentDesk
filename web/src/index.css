@@ -12,3 +12,44 @@ main {
   margin: 0 auto;
   padding: 2rem 1rem;
 }
+
+.gate form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.gate label {
+  flex-basis: 100%;
+  font-weight: 600;
+}
+
+.gate input {
+  font: inherit;
+  padding: 0.5rem 0.75rem;
+  width: 10rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+button {
+  font: inherit;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+.problem {
+  color: #b91c1c;
+}
+
+@media (prefers-color-scheme: dark) {
+  .problem {
+    color: #fca5a5;
+  }
+}

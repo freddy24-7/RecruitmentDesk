@@ -30,6 +30,6 @@ Date: 2026-10-13
 
 ## Still open
 
-- **The CI workflow has not run yet.** It runs for the first time when this stage is pushed. Check the result on GitHub.
+- ~~The CI workflow has not run yet.~~ Closed: it ran green on GitHub for the skeleton commit (`63eed6f`).
 - The frontend is not yet served by the backend. In development Vite proxies `/api` and `/health` to the backend. Serving the built frontend from FastAPI comes with the first browser tests (stage 3) and deployment (stage 9).
 - The coverage gate covers `app/` and `scripts/`. The frontend has no coverage gate.

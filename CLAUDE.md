@@ -49,7 +49,7 @@ It is a demo, not a product. **All candidates are fictional.** There is no real 
 - Type hints everywhere. `mypy --strict` and `ruff` must pass. For the frontend: TypeScript strict mode and ESLint.
 - Prompts are versioned files in `prompts/`, not inline strings. The file name is the version, and it is stored with each generated result.
 - **Pin exact Mistral model versions in configuration.** Do not use `-latest` aliases for evaluation runs. Use low temperature for assessments.
-- Small modules with one job each. Suggested layout: `app/llm`, `app/vacancy`, `app/candidates`, `app/script`, `app/screening`, `app/interview`, `app/jobs`, `app/limits`, `app/web`, plus `prompts/`, `tests/`, `scripts/`, `cards/`, `deploy/`, `web/` (frontend).
+- Small modules with one job each. Suggested layout: `app/access`, `app/llm`, `app/vacancy`, `app/candidates`, `app/script`, `app/screening`, `app/interview`, `app/jobs`, `app/limits`, `app/web`, plus `prompts/`, `tests/`, `scripts/`, `cards/`, `deploy/`, `web/` (frontend).
 - Code, comments and docs in English.
 
 ## UI requirements to keep in mind
@@ -108,10 +108,13 @@ docker compose up -d --wait                   # local PostgreSQL on localhost:54
 uv run alembic upgrade head                   # migrations
 uv run uvicorn app.main:app --reload          # backend on http://localhost:8000
 npm --prefix web install && npm --prefix web run dev   # frontend dev server on http://localhost:5173
-uv run pytest tests/unit tests/integration    # fast tests, no network (integration needs the local PostgreSQL)
+uv run pytest tests/unit tests/integration    # fast tests, no network. They create and use their own database (<name>_test) with fake secrets
 uv run pytest tests/unit tests/integration --cov --cov-fail-under=70   # as CI runs them, with the coverage gate
 uv run ruff check . && uv run ruff format --check . && uv run mypy .
 uv run python scripts/check_tracked_files.py  # fails if Git tracks a codes file or a .env file
+uv run python scripts/manage_codes.py status  # uses per code label (never prints the codes)
+# manage_codes.py create|extend|disable also exist. Run create only on the developer's machine, never in CI.
+uv run alembic revision --autogenerate -m "..."   # new migration after a model change; review it by hand
 npm --prefix web run lint && npm --prefix web run build && npm --prefix web test   # frontend: ESLint, types and build, Vitest
 ```
 
@@ -120,8 +123,6 @@ Not created yet (add when the stage arrives):
 ```bash
 uv run pytest tests/e2e                       # browser tests (stage 3)
 uv run python scripts/evaluate_lists.py --services fake    # evaluation code with the fake model (stage 8)
-uv run python scripts/manage_codes.py status               # uses per code label, never prints the codes (stage 1)
-# manage_codes.py create|extend|disable also arrive in stage 1. Run create only on the developer's machine, never in CI.
 ```
 
 ## Working with the author

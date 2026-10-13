@@ -10,7 +10,8 @@ The full specification is in [docs/PRD.md](docs/PRD.md). Notes per stage are in 
 
 Built in ten stages (PRD section 13). Done so far:
 
-- **Stage 0, skeleton:** backend with a health endpoint, database and migration setup, an empty frontend, tests and CI. No model calls and no features yet.
+- **Stage 0, skeleton:** backend with a health endpoint, database and migration setup, an empty frontend, tests and CI.
+- **Stage 1, access gate:** nothing is reachable without an access code. Codes are limited to 20 uses, counted atomically, stored only as keyed hashes, and protected against guessing. No model calls yet.
 
 ## Run it locally
 
@@ -26,13 +27,30 @@ npm --prefix web install
 npm --prefix web run dev                 # frontend on http://localhost:5173
 ```
 
-Configuration is read from environment variables. Copy `.env.example` to `.env` to change the defaults. Never commit `.env`.
+Before the first run, copy `.env.example` to `.env` and fill in the two secrets (`ACCESS_CODE_PEPPER` and `SESSION_SECRET`). The file explains how to generate them. The app does not start without them. Never commit `.env`.
+
+## Access codes
+
+The whole app sits behind an access code. Codes are managed with a script, not a web page:
+
+```bash
+uv run python scripts/manage_codes.py create --count 10            # prints the new codes ONCE
+uv run python scripts/manage_codes.py status                       # uses per label, never prints codes
+uv run python scripts/manage_codes.py extend --label c03 --uses 20
+uv run python scripts/manage_codes.py disable --label c03
+```
+
+- `create` shows each code once and writes no file. Store the codes in a password manager straight away.
+- Codes are stored only as keyed hashes (HMAC-SHA256 with `ACCESS_CODE_PEPPER`). They cannot be recovered from the database, and they stop working if the pepper changes.
+- The script acts on the database in `DATABASE_URL` and must use the same pepper as the running app.
+- Never put a code in the repository, in an issue, in CI configuration or in a chat.
 
 ## Checks
 
 ```bash
 uv run ruff check . && uv run ruff format --check . && uv run mypy .
 uv run pytest tests/unit tests/integration --cov --cov-fail-under=70   # needs the local PostgreSQL
+                                         # tests use their own database (recruitdesk_test) and fake secrets
 uv run python scripts/check_tracked_files.py    # no access codes or .env files tracked by Git
 
 npm --prefix web run lint

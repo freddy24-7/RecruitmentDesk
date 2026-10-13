@@ -14,9 +14,13 @@ from app.db import Base
 config = context.config
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # Keep loggers that already exist: by default fileConfig switches them off,
+    # which would silence the application if migrations run in the same process.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Import model modules here as they are added, so autogenerate can see them.
+import app.access.models  # noqa: E402, F401
+
 target_metadata = Base.metadata
 
 
