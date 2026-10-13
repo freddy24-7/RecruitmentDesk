@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Guidance for Claude Code when working on **RecruitDesk**. Read `docs/PRD.md` first (copy of `recruitdesk-prd.md`). The PRD is the source of truth for scope, flows and stages. If this file and the PRD disagree, stop and ask.
+Guidance for Claude Code when working on **RecruitDesk**. Read `docs/PRD.md` first. The PRD is the source of truth for scope, flows and stages. If this file and the PRD disagree, stop and ask.
 
 ## What this project is
 
@@ -104,16 +104,24 @@ It is a demo, not a product. **All candidates are fictional.** There is no real 
 
 ```bash
 uv sync                                       # install Python dependencies
-docker compose up -d                          # local PostgreSQL
+docker compose up -d --wait                   # local PostgreSQL on localhost:5433
 uv run alembic upgrade head                   # migrations
 uv run uvicorn app.main:app --reload          # backend on http://localhost:8000
-npm --prefix web install && npm --prefix web run dev   # frontend dev server
-uv run pytest tests/unit tests/integration    # fast tests, no network
-uv run pytest tests/e2e                       # browser tests
-uv run ruff check . && uv run mypy .
-uv run python scripts/evaluate_lists.py --services fake    # evaluation code with the fake model
-uv run python scripts/manage_codes.py status               # uses per code label (never prints the codes)
-# manage_codes.py create|extend|disable also exist. Run create only on the developer's machine, never in CI.
+npm --prefix web install && npm --prefix web run dev   # frontend dev server on http://localhost:5173
+uv run pytest tests/unit tests/integration    # fast tests, no network (integration needs the local PostgreSQL)
+uv run pytest tests/unit tests/integration --cov --cov-fail-under=70   # as CI runs them, with the coverage gate
+uv run ruff check . && uv run ruff format --check . && uv run mypy .
+uv run python scripts/check_tracked_files.py  # fails if Git tracks a codes file or a .env file
+npm --prefix web run lint && npm --prefix web run build && npm --prefix web test   # frontend: ESLint, types and build, Vitest
+```
+
+Not created yet (add when the stage arrives):
+
+```bash
+uv run pytest tests/e2e                       # browser tests (stage 3)
+uv run python scripts/evaluate_lists.py --services fake    # evaluation code with the fake model (stage 8)
+uv run python scripts/manage_codes.py status               # uses per code label, never prints the codes (stage 1)
+# manage_codes.py create|extend|disable also arrive in stage 1. Run create only on the developer's machine, never in CI.
 ```
 
 ## Working with the author

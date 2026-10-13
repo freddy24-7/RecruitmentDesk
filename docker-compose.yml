@@ -1,0 +1,21 @@
+# Local PostgreSQL for development and tests.
+# Host port 5433, so it does not clash with another project's database on 5432.
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: recruitdesk
+      POSTGRES_PASSWORD: recruitdesk
+      POSTGRES_DB: recruitdesk
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U recruitdesk -d recruitdesk"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  postgres-data:

@@ -1,0 +1,53 @@
+[project]
+name = "recruitdesk"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.20.0",
+    "asyncpg>=0.32.0",
+    "fastapi>=0.143.0",
+    "pydantic-settings>=2.15.0",
+    "sqlalchemy[asyncio]>=2.1.4",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "mypy>=2.4.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+markers = [
+    "mistral: calls the real Mistral API (costs money); run only on request",
+]
+
+[tool.coverage.run]
+source = ["app", "scripts"]
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "ASYNC", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+# git is a fixed, trusted command here.
+"scripts/check_tracked_files.py" = ["S603", "S607"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "scripts", "tests"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+exclude = ["^web/"]
+plugins = ["pydantic.mypy"]
