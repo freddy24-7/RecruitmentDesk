@@ -182,22 +182,27 @@ def _build(
     nice = list(profile.nice_skills)
 
     if category is MatchCategory.STRONG:
-        # Has every required skill, for at least the years the vacancy asks.
-        wanted = {
-            need.name: max(need.min_years, 1) + rng.randint(0, 3) for need in required
-        }
+        # Meets every requirement, for at least the years the vacancy asks.
+        # Where the vacancy offers alternatives ("AWS, Azure or GCP"), one is
+        # enough; some candidates know a second one, for a shorter time.
+        wanted = {}
+        for need in required:
+            chosen = rng.sample(need.any_of, k=min(len(need.any_of), 2))
+            wanted[chosen[0]] = max(need.min_years, 1) + rng.randint(0, 3)
+            if len(chosen) > 1 and rng.random() < 0.25:
+                wanted[chosen[1]] = rng.randint(1, max(1, need.min_years))
         years = max(years, math.ceil(max(wanted.values())))
         brief: list[str] = []
         extras = rng.sample(nice, k=rng.randint(math.ceil(len(nice) / 2), len(nice)))
         role = title
     elif category is MatchCategory.PARTIAL:
-        # Same kind of job, but at least one required skill is missing.
+        # Same kind of job, but at least one requirement is not met at all.
         keep = min(
             max(1, round(len(required) * rng.uniform(0.4, 0.7))), len(required) - 1
         )
-        held = rng.sample(required, k=keep)
         wanted = {
-            need.name: max(1, need.min_years - rng.randint(0, 2)) for need in held
+            rng.choice(need.any_of): max(1, need.min_years - rng.randint(0, 2))
+            for need in rng.sample(required, k=keep)
         }
         brief = []
         extras = rng.sample(nice, k=rng.randint(0, len(nice) // 2))
@@ -206,7 +211,7 @@ def _build(
         # A neighbouring job: its own skills, and one required skill in passing.
         sketch = rng.choice(profile.adjacent_roles)
         wanted = {skill: rng.randint(1, max(1, years)) for skill in sketch.skills}
-        brief = [rng.choice(required).name]
+        brief = [rng.choice(rng.choice(required).any_of)]
         extras = []
         role = sketch.title
     else:
@@ -222,11 +227,19 @@ def _build(
         _give_recent(positions, skill, target_years, as_of)
     for skill in [*brief, *extras]:
         _give_briefly(positions, skill, as_of)
+    if role == title:
+        # Someone in this line of work used their main skill in every job. A
+        # cloud engineer's CV with a job that names no cloud skill at all would
+        # be odd, and hard to write.
+        main = max(wanted, key=lambda skill: wanted[skill])
+        for position in positions:
+            if not position.skills:
+                position.skills.append(main)
 
     # The ground truth is computed from the timeline as it turned out, with
     # the same arithmetic the scoring step will use on the CV.
     skill_years = years_per_skill(positions, as_of)
-    vacancy_skills = [need.name for need in required] + nice
+    vacancy_skills = profile.vacancy_skills
     first, last = name
     return Blueprint(
         index=index,
@@ -238,6 +251,7 @@ def _build(
         years_experience=total_years(positions, as_of),
         positions=positions,
         skill_years=skill_years,
+        tracked_skills=[skill for skill in vacancy_skills if skill in skill_years],
         avoid_skills=[skill for skill in vacancy_skills if skill not in skill_years],
         education_level=rng.choice(["Bachelor", "Bachelor", "Master"]),
         languages=[

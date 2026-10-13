@@ -4,6 +4,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
+from app.candidates.text import overlap
+
 MAX_CANDIDATES = 100
 NAME_MAX = 80
 TEXT_MAX = 1500
@@ -26,19 +28,22 @@ def _tidy_names(values: list[str]) -> list[str]:
 
 
 class SkillNeed(BaseModel):
+    """One requirement of the vacancy: any one of the named skills meets it.
+
+    A vacancy that asks for "AWS, Azure or GCP" has one need with three
+    alternatives, not three needs.
+    """
+
     model_config = ConfigDict(extra="forbid")
 
-    name: str
+    any_of: list[str]
     # Years of experience the vacancy asks for. 0 when it names no number.
     min_years: int
 
-    @field_validator("name")
+    @field_validator("any_of")
     @classmethod
-    def tidy(cls, value: str) -> str:
-        value = value.strip()
-        if not value or len(value) > NAME_MAX:
-            raise ValueError("skill name must be 1 to 80 characters")
-        return value
+    def tidy(cls, value: list[str]) -> list[str]:
+        return _tidy_names(value)
 
     @field_validator("min_years")
     @classmethod
@@ -86,29 +91,51 @@ class VacancyProfile(BaseModel):
 
     @model_validator(mode="after")
     def usable(self) -> "VacancyProfile":
-        unique: dict[str, SkillNeed] = {}
-        for need in self.required_skills:
-            unique.setdefault(need.name.lower(), need)
-        self.required_skills = list(unique.values())[:8]
-        if len(self.required_skills) < 2:
-            raise ValueError("at least two required skills are needed")
+        # No skill name may contain another ("AWS" and "AWS CDK"). Otherwise a
+        # CV that names one would also name the other, and a candidate could
+        # not have the first without seeming to have the second. The name that
+        # comes first is kept.
+        taken: list[str] = []
 
-        taken = set(unique)
-        self.nice_skills = [
-            s for s in _tidy_names(self.nice_skills) if s.lower() not in taken
-        ][:6]
-        taken.update(skill.lower() for skill in self.nice_skills)
+        def free(names: list[str], limit: int) -> list[str]:
+            kept: list[str] = []
+            for name in names:
+                if len(kept) < limit and not any(overlap(name, t) for t in taken):
+                    taken.append(name)
+                    kept.append(name)
+            return kept
+
+        needs: list[SkillNeed] = []
+        for need in self.required_skills:
+            alternatives = free(need.any_of, limit=4)
+            if alternatives and len(needs) < 8:
+                needs.append(SkillNeed(any_of=alternatives, min_years=need.min_years))
+        if len(needs) < 2:
+            raise ValueError("at least two required skills are needed")
+        self.required_skills = needs
+        self.nice_skills = free(_tidy_names(self.nice_skills), limit=6)
 
         # A neighbouring or unrelated job must not bring the vacancy's own
         # skills along, or the planted match category would be wrong.
+        vacancy_skills = list(taken)
         for roles in (self.adjacent_roles, self.unrelated_roles):
             for role in roles:
-                role.skills = [s for s in role.skills if s.lower() not in taken][:6]
+                role.skills = [
+                    skill
+                    for skill in role.skills
+                    if not any(overlap(skill, taken) for taken in vacancy_skills)
+                ][:6]
         self.adjacent_roles = [r for r in self.adjacent_roles if r.skills][:5]
         self.unrelated_roles = [r for r in self.unrelated_roles if r.skills][:5]
         if not self.adjacent_roles or not self.unrelated_roles:
             raise ValueError("adjacent and unrelated roles with skills are needed")
         return self
+
+    @property
+    def vacancy_skills(self) -> list[str]:
+        """Every skill the vacancy names: all alternatives, and the nice-to-haves."""
+        required = [name for need in self.required_skills for name in need.any_of]
+        return required + self.nice_skills
 
 
 # --- The blueprint: sampled by code, the ground truth -------------------------
@@ -150,6 +177,9 @@ class Blueprint(BaseModel):
     years_experience: float
     positions: list[BlueprintPosition]  # most recent first
     skill_years: dict[str, float]
+    # Vacancy skills this candidate has. Each may only be named in the jobs
+    # where it was used, because years are computed from those jobs.
+    tracked_skills: list[str] = []
     # Vacancy skills this candidate does not have. The CV must not mention them.
     avoid_skills: list[str]
     education_level: str

@@ -57,10 +57,11 @@ def fake_vacancy_profile(request: LlmRequest) -> str:
     return json.dumps(
         {
             "required_skills": [
-                {"name": "Microsoft Azure", "min_years": 3},
-                {"name": "Terraform", "min_years": 2},
-                {"name": "Kubernetes", "min_years": 0},
-                {"name": "CI/CD", "min_years": 0},
+                # One requirement with alternatives: any one of them meets it.
+                {"any_of": ["Microsoft Azure", "AWS"], "min_years": 3},
+                {"any_of": ["Terraform"], "min_years": 2},
+                {"any_of": ["Kubernetes"], "min_years": 0},
+                {"any_of": ["CI/CD"], "min_years": 0},
             ],
             "nice_skills": ["Scrum", "Python"],
             "adjacent_roles": [

@@ -141,7 +141,7 @@ async def test_the_real_model_analyses_a_vacancy_and_writes_usable_cvs() -> None
         )
     )
     profile = VacancyProfile.model_validate_json(profile_response.text)
-    required = [(need.name, need.min_years) for need in profile.required_skills]
+    required = [(need.any_of, need.min_years) for need in profile.required_skills]
     print(
         f"\nprofile: required={required} "
         f"nice={profile.nice_skills} "

@@ -11,6 +11,10 @@ import structlog
 
 def configure_logging() -> None:
     logging.basicConfig(format="%(message)s", level=logging.INFO)
+    # The HTTP libraries log one line per request at INFO. Keep those out: our
+    # own events already say what happened.
+    for noisy in ("httpx", "httpx2", "httpcore", "httpcore2"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
     structlog.configure(
         processors=[
             structlog.processors.add_log_level,

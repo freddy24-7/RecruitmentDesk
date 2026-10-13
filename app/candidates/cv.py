@@ -14,6 +14,7 @@ from app.candidates.schemas import (
     CvPosition,
     CvText,
 )
+from app.candidates.text import mentions
 
 # Personal details a CV must not contain (PRD F4). Checked in the model's
 # text; an answer that contains one is treated as invalid output.
@@ -30,12 +31,6 @@ FORBIDDEN_PERSONAL = [
     r"\bphoto(graph)?\b",
 ]
 _FORBIDDEN = [re.compile(pattern, re.IGNORECASE) for pattern in FORBIDDEN_PERSONAL]
-
-
-def mentions(text: str, term: str) -> bool:
-    """True if `term` occurs in `text` as a whole word or phrase, ignoring case."""
-    pattern = r"(?<![A-Za-z0-9])" + re.escape(term) + r"(?![A-Za-z0-9])"
-    return re.search(pattern, text, re.IGNORECASE) is not None
 
 
 def _all_text(written: CvText) -> str:
@@ -64,7 +59,9 @@ def problems_in(written: CvText, blueprint: Blueprint) -> list[str]:
         found.append("mentions_missing_skill")
     # A skill must only be named in the jobs where it was used. Years of
     # experience are later computed from the dated jobs that mention it.
-    held = set(blueprint.skill_years)
+    # Only the vacancy's skills are tracked this way. The everyday skills of
+    # another job ("monitoring") may turn up anywhere.
+    held = set(blueprint.tracked_skills)
     for text_part, planned in zip(written.positions, blueprint.positions, strict=False):
         # Highlights only: a job title may legitimately contain a skill name.
         job_text = "\n".join(text_part.highlights)

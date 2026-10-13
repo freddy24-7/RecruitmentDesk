@@ -6,6 +6,7 @@ import uuid
 from datetime import UTC, datetime
 
 import structlog
+from pydantic import ValidationError
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -37,8 +38,8 @@ from app.vacancy.schemas import VacancyParameters, VacancySections
 
 log = structlog.get_logger()
 
-PROFILE_PROMPT = "vacancy_profile_v1"
-CV_PROMPT = "cv_v1"
+PROFILE_PROMPT = "vacancy_profile_v2"
+CV_PROMPT = "cv_v2"
 PROFILE_CALL = "vacancy_profile"
 CV_CALL = "cv"
 # Extraction should be repeatable; CV prose may vary.
@@ -140,12 +141,17 @@ def profile_variables(vacancy: Vacancy) -> dict[str, str]:
 
 def cv_variables(blueprint: Blueprint, sector: str) -> dict[str, str]:
     """What the model is told about a candidate. No name and no contact details."""
-    jobs = [
-        f"{number}. {position.role} ({position.seniority}), "
-        f"{position.start} to {position.end or 'present'}. "
-        f"Skills in this job: {', '.join(position.skills) or 'none in particular'}"
-        for number, position in enumerate(blueprint.positions, start=1)
-    ]
+    tracked = blueprint.tracked_skills
+    jobs = []
+    for number, position in enumerate(blueprint.positions, start=1):
+        elsewhere = [skill for skill in tracked if skill not in position.skills]
+        jobs.append(
+            f"{number}. {position.role} ({position.seniority}), "
+            f"{position.start} to {position.end or 'present'}.\n"
+            f"   Skills used in this job: "
+            f"{', '.join(position.skills) or 'none in particular'}\n"
+            f"   Do not name in this job: {', '.join(elsewhere) or '(nothing)'}"
+        )
     return {
         "sector": sector,
         "seniority": blueprint.seniority,
@@ -254,7 +260,11 @@ class CandidateGenerator:
     async def _profile(self, vacancy: Vacancy, job_id: uuid.UUID) -> VacancyProfile:
         """Skills and neighbouring roles of the vacancy: one model call per version."""
         if vacancy.profile is not None and vacancy.profile_version == vacancy.version:
-            return VacancyProfile.model_validate(vacancy.profile)
+            try:
+                return VacancyProfile.model_validate(vacancy.profile)
+            except ValidationError:
+                # Stored by an earlier version of the code: analyse again.
+                pass
         profile = await self._llm.generate(
             call_type=PROFILE_CALL,
             model=self._settings.mistral_model_vacancy,

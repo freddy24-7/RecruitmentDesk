@@ -6,13 +6,14 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from app.candidates.cv import assemble, mentions, problems_in, render_text
+from app.candidates.cv import assemble, problems_in, render_text
 from app.candidates.schemas import (
     Blueprint,
     BlueprintPosition,
     CvText,
     VacancyProfile,
 )
+from app.candidates.text import mentions, overlap
 from app.candidates.timeline import (
     add_months,
     month_index,
@@ -98,6 +99,7 @@ BLUEPRINT = Blueprint.model_validate(
             job("2020-01", "2023-12", "Microsoft Azure").model_dump(),
         ],
         "skill_years": {"Microsoft Azure": 6.8, "Terraform": 2.8},
+        "tracked_skills": ["Microsoft Azure", "Terraform"],
         "avoid_skills": ["Kubernetes", "CI/CD"],
         "education_level": "Bachelor",
         "languages": [{"language": "Dutch", "level": "fluent"}],
@@ -202,6 +204,21 @@ def test_a_skill_named_in_a_job_where_it_was_not_used_is_a_problem() -> None:
     )
 
 
+def test_everyday_skills_of_another_job_may_appear_anywhere() -> None:
+    """Seen with the real model: "monitoring" as a skill of a reliability engineer.
+
+    Only the vacancy's own skills are tied to the jobs where they were used.
+    """
+    data = BLUEPRINT.model_dump()
+    data["positions"][0]["skills"].append("monitoring")
+    data["skill_years"]["monitoring"] = 2.8
+    other_job = Blueprint.model_validate(data)
+    positions = written().model_dump()["positions"]
+    positions[1]["highlights"] = ["Set up monitoring for all workloads."]
+
+    assert problems_in(written(positions=positions), other_job) == []
+
+
 def test_mentions_matches_whole_words_only() -> None:
     assert mentions("Worked with Java daily", "java")
     assert not mentions("Wrote JavaScript daily", "Java")
@@ -216,8 +233,8 @@ def test_mentions_matches_whole_words_only() -> None:
 def profile(**changes: Any) -> dict[str, Any]:
     base: dict[str, Any] = {
         "required_skills": [
-            {"name": "Microsoft Azure", "min_years": 3},
-            {"name": "Terraform", "min_years": 0},
+            {"any_of": ["Microsoft Azure", "AWS"], "min_years": 3},
+            {"any_of": ["Terraform"], "min_years": 0},
         ],
         "nice_skills": ["Scrum"],
         "adjacent_roles": [{"title": "Data Engineer", "skills": ["Spark", "dbt"]}],
@@ -226,13 +243,26 @@ def profile(**changes: Any) -> dict[str, Any]:
     return base | changes
 
 
+def needs(parsed: VacancyProfile) -> list[tuple[list[str], int]]:
+    return [(need.any_of, need.min_years) for need in parsed.required_skills]
+
+
+def test_alternatives_stay_together_as_one_requirement() -> None:
+    parsed = VacancyProfile.model_validate(profile())
+
+    assert needs(parsed) == [(["Microsoft Azure", "AWS"], 3), (["Terraform"], 0)]
+    assert parsed.vacancy_skills == ["Microsoft Azure", "AWS", "Terraform", "Scrum"]
+
+
 def test_a_profile_is_tidied() -> None:
     parsed = VacancyProfile.model_validate(
         profile(
             required_skills=[
-                {"name": " Microsoft Azure ", "min_years": 3},
-                {"name": "microsoft azure", "min_years": 5},
-                {"name": "Terraform", "min_years": 0},
+                {
+                    "any_of": [" Microsoft Azure ", "microsoft azure", ""],
+                    "min_years": 3,
+                },
+                {"any_of": ["Terraform", "Microsoft Azure"], "min_years": 0},
             ],
             nice_skills=["Scrum", "terraform", "", "scrum"],
             adjacent_roles=[
@@ -244,29 +274,72 @@ def test_a_profile_is_tidied() -> None:
         )
     )
 
-    assert [(n.name, n.min_years) for n in parsed.required_skills] == [
-        ("Microsoft Azure", 3),
-        ("Terraform", 0),
-    ]
+    # A skill belongs to one requirement only, and is not repeated.
+    assert needs(parsed) == [(["Microsoft Azure"], 3), (["Terraform"], 0)]
     assert parsed.nice_skills == ["Scrum"]
     # A neighbouring job does not bring the vacancy's own skills along.
     assert parsed.adjacent_roles[0].skills == ["Spark"]
 
 
+def test_a_skill_name_that_contains_another_is_dropped() -> None:
+    """Seen with the real model: "AWS" and "AWS CDK" as two skills.
+
+    A CV that names "AWS CDK" also names "AWS", so a candidate could not have
+    one without seeming to have the other.
+    """
+    parsed = VacancyProfile.model_validate(
+        profile(
+            required_skills=[
+                {"any_of": ["AWS", "Azure", "GCP"], "min_years": 5},
+                {"any_of": ["Terraform", "Pulumi", "AWS CDK"], "min_years": 3},
+                {"any_of": ["Python"], "min_years": 0},
+            ],
+            nice_skills=["Azure Solutions Architect Expert", "Docker", "Go"],
+            adjacent_roles=[
+                {"title": "DevOps Engineer", "skills": ["Jenkins", "Python scripting"]}
+            ],
+        )
+    )
+
+    assert needs(parsed) == [
+        (["AWS", "Azure", "GCP"], 5),
+        (["Terraform", "Pulumi"], 3),
+        (["Python"], 0),
+    ]
+    # "Go" is a different word from "Google": only whole words count.
+    assert parsed.nice_skills == ["Docker", "Go"]
+    assert parsed.adjacent_roles[0].skills == ["Jenkins"]
+
+
+def test_overlap_is_about_whole_words() -> None:
+    assert overlap("AWS", "AWS CDK")
+    assert overlap("AWS CDK", "aws")
+    assert overlap("Azure", "Azure")
+    assert not overlap("Java", "JavaScript")
+    assert not overlap("Go", "Google Cloud")
+
+
 @pytest.mark.parametrize(
     "change",
     [
-        {"required_skills": [{"name": "Azure", "min_years": 1}]},
+        {"required_skills": [{"any_of": ["Azure"], "min_years": 1}]},
         {
             "required_skills": [
-                {"name": "", "min_years": 1},
-                {"name": "X", "min_years": 1},
+                {"any_of": [], "min_years": 1},
+                {"any_of": ["X"], "min_years": 1},
             ]
         },
         {
             "required_skills": [
-                {"name": "A", "min_years": 40},
-                {"name": "B", "min_years": 1},
+                {"any_of": ["A"], "min_years": 40},
+                {"any_of": ["B"], "min_years": 1},
+            ]
+        },
+        # Two requirements that turn out to be the same skill leave only one.
+        {
+            "required_skills": [
+                {"any_of": ["Azure"], "min_years": 1},
+                {"any_of": ["Microsoft Azure"], "min_years": 1},
             ]
         },
         {"adjacent_roles": []},

@@ -7,7 +7,12 @@ from datetime import date
 import pytest
 
 from app.candidates.blueprints import category_counts, sample_blueprints
-from app.candidates.schemas import Blueprint, MatchCategory, VacancyProfile
+from app.candidates.schemas import (
+    Blueprint,
+    MatchCategory,
+    SkillNeed,
+    VacancyProfile,
+)
 from app.candidates.timeline import total_years, years_per_skill
 from app.llm.base import LlmRequest
 from app.llm.fake import fake_vacancy_profile
@@ -28,8 +33,21 @@ PROFILE = VacancyProfile.model_validate_json(
         )
     )
 )
-REQUIRED = {need.name: need.min_years for need in PROFILE.required_skills}
+NEEDS = PROFILE.required_skills
+REQUIRED = {name for need in NEEDS for name in need.any_of}
 NICE = set(PROFILE.nice_skills)
+
+
+def has(blueprint: Blueprint, need: SkillNeed) -> bool:
+    return any(name in blueprint.skill_years for name in need.any_of)
+
+
+def meets(blueprint: Blueprint, need: SkillNeed) -> bool:
+    """One of the alternatives, for at least the years the vacancy asks."""
+    return any(
+        blueprint.skill_years.get(name, 0) >= max(need.min_years, 1)
+        for name in need.any_of
+    )
 
 
 def sample(
@@ -121,35 +139,45 @@ def test_contact_details_are_clearly_fictional_and_unique() -> None:
     assert [b.index for b in pool] == list(range(1, 101))
 
 
-def test_a_strong_match_has_every_required_skill_for_long_enough() -> None:
+def test_a_strong_match_meets_every_requirement_for_long_enough() -> None:
     strong = [b for b in sample(100) if b.match_category is MatchCategory.STRONG]
 
     assert strong
     for blueprint in strong:
-        for skill, min_years in REQUIRED.items():
-            assert blueprint.skill_years.get(skill, 0) >= max(min_years, 1)
-        assert not set(blueprint.avoid_skills) & set(REQUIRED)
+        assert all(meets(blueprint, need) for need in NEEDS)
         assert all(
             position.role == "Cloud Engineer" for position in blueprint.positions
         )
 
 
-def test_a_partial_match_misses_at_least_one_required_skill() -> None:
+def test_one_alternative_is_enough_for_a_strong_match() -> None:
+    """The vacancy asks for Azure or AWS: a strong match need not have both."""
+    strong = [b for b in sample(100) if b.match_category is MatchCategory.STRONG]
+    clouds = [{"Microsoft Azure", "AWS"} & set(b.skill_years) for b in strong]
+
+    assert all(len(held) >= 1 for held in clouds)
+    assert any(len(held) == 1 for held in clouds)
+    # The one they lack must not turn up in their CV.
+    for blueprint, held in zip(strong, clouds, strict=True):
+        assert {"Microsoft Azure", "AWS"} - held <= set(blueprint.avoid_skills)
+
+
+def test_a_partial_match_misses_at_least_one_requirement() -> None:
     partial = [b for b in sample(100) if b.match_category is MatchCategory.PARTIAL]
 
     for blueprint in partial:
-        held = set(blueprint.skill_years) & set(REQUIRED)
-        assert 1 <= len(held) < len(REQUIRED)
-        assert set(REQUIRED) - held <= set(blueprint.avoid_skills)
+        covered = [has(blueprint, need) for need in NEEDS]
+        assert 1 <= sum(covered) < len(NEEDS)
+        assert not all(meets(blueprint, need) for need in NEEDS)
 
 
-def test_an_adjacent_candidate_has_another_job_and_at_most_one_required_skill() -> None:
+def test_an_adjacent_candidate_has_another_job_and_one_required_skill() -> None:
     adjacent = [b for b in sample(100) if b.match_category is MatchCategory.ADJACENT]
     adjacent_titles = {role.title for role in PROFILE.adjacent_roles}
 
     for blueprint in adjacent:
         assert {position.role for position in blueprint.positions} <= adjacent_titles
-        assert len(set(blueprint.skill_years) & set(REQUIRED)) == 1
+        assert len(set(blueprint.skill_years) & REQUIRED) == 1
 
 
 def test_a_weak_match_has_none_of_the_vacancy_skills() -> None:
@@ -157,9 +185,26 @@ def test_a_weak_match_has_none_of_the_vacancy_skills() -> None:
     unrelated_titles = {role.title for role in PROFILE.unrelated_roles}
 
     for blueprint in weak:
-        assert not set(blueprint.skill_years) & (set(REQUIRED) | NICE)
+        assert not set(blueprint.skill_years) & (REQUIRED | NICE)
         assert {position.role for position in blueprint.positions} <= unrelated_titles
-        assert set(blueprint.avoid_skills) == set(REQUIRED) | NICE
+        assert set(blueprint.avoid_skills) == REQUIRED | NICE
+        assert blueprint.tracked_skills == []
+
+
+def test_vacancy_skills_are_either_tracked_or_to_be_avoided() -> None:
+    for blueprint in sample(100):
+        tracked, avoid = set(blueprint.tracked_skills), set(blueprint.avoid_skills)
+
+        assert tracked | avoid == REQUIRED | NICE
+        assert not tracked & avoid
+        assert tracked == set(blueprint.skill_years) & (REQUIRED | NICE)
+
+
+def test_someone_in_this_line_of_work_names_a_skill_in_every_job() -> None:
+    """A cloud engineer's CV with a job that names no skill is hard to write."""
+    for blueprint in sample(100):
+        if blueprint.match_category in (MatchCategory.STRONG, MatchCategory.PARTIAL):
+            assert all(position.skills for position in blueprint.positions)
 
 
 def test_ground_truth_years_are_what_the_timeline_says() -> None:

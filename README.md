@@ -16,6 +16,15 @@ Built in ten stages (PRD section 13). Done so far:
 - **Stage 3, review and submit:** a draft is reviewed in an editor, with versions and "Reset to generated". "Cancel vacancy" deletes it after a confirmation that says what is lost. Submitted vacancies get their own list, with actions that are disabled, with a reason, until their prerequisites exist.
 - **Stage 4, candidates:** 1 to 100 fictional candidates per vacancy. Code samples who each candidate is (with a known match category, as ground truth) and builds their dated job history; the model writes the CV prose. A searchable, sortable candidate page with a CV view. Tested with a fake model only.
 
+### What has run against the real Mistral API
+
+On 2026-10-13, with `mistral-small-2603`, about 60 calls in total:
+
+- six calls through `uv run pytest -m mistral tests/real -s` (one vacancy, one vacancy profile, four CVs);
+- two runs of one vacancy and 20 candidates through the app's job pipeline. The first exposed three design faults and produced 16 of 20 candidates. After the fixes, the second produced 20 of 20, every CV usable on the first answer, in 19.5 seconds, for an estimated $0.0075.
+
+Total estimated spend: about 2 cents. Every automated test, including the browser tests, uses the fake model. Details and the measured figures are in [cards/04-candidates.md](cards/04-candidates.md).
+
 ## Run it locally
 
 Requirements: [uv](https://docs.astral.sh/uv/), Node.js 20 or newer, Docker.

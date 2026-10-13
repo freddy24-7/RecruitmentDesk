@@ -221,7 +221,7 @@ async def test_one_profile_call_and_one_call_per_cv_are_recorded(
     ).all()
 
     assert Counter(r.call_type for r in records) == {"vacancy_profile": 1, "cv": 6}
-    assert {r.prompt_version for r in records} == {"vacancy_profile_v1", "cv_v1"}
+    assert {r.prompt_version for r in records} == {"vacancy_profile_v2", "cv_v2"}
 
 
 async def test_the_same_vacancy_text_is_not_analysed_twice(

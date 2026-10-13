@@ -45,11 +45,55 @@ Date: 2026-10-13
   - Every chat call is refused with HTTP 429. The response header `x-ratelimit-limit-req-minute` is `0`: the Free plan allows no chat requests at all. So the schema, the answer quality and the cost are still untested.
   - Our error handling turned this into "The model is busy right now. Please try again in a moment", after the SDK had retried for a minute. That message is wrong for a limit of zero, where waiting does not help.
 
+- **First real model calls (2026-10-13, Pro plan, `mistral-small-2603`), six in total, measured by `uv run pytest -m mistral tests/real -s`:**
+  - **The API accepts our strict JSON schemas** for all three call types (vacancy, vacancy profile, CV). This was the main unknown since stage 2.
+  - **Vacancy:** 465 tokens in, 845 out, 5.7 seconds, estimated $0.00058, valid on the first answer, no flagged wording.
+  - **CVs:** four calls, one per match category, about 500 tokens in and 300 to 440 out, estimated $0.0003 each. **Three of the four first answers were usable.** The fourth (the weak match) named a skill in a job where it was not used. In the app that answer is retried once.
+  - **Vacancy profile:** the call worked, but its input was the thin text of the fake vacancy. It returned only two required skills, one of them vague ("cloud engineering"), and it attached "3 years" to Microsoft Azure although the text asks for three years in a comparable role. Not a fair test of the prompt, but a warning: the profile needs checking on a real vacancy.
+  - **Total estimated cost of the six calls: $0.0015.**
+  - A sample of four CVs says little about the failure rate. A run of 20 or more through the app is needed for a figure.
+
+## The first real run through the app, and what it changed (2026-10-13)
+
+One real vacancy and 20 real candidates, through the normal job pipeline on the test database, with `mistral-small-2603`. Measured from the usage records.
+
+**First attempt: 16 of 20 candidates, and 13 of 29 CV answers rejected.** The vacancy and the CV prose read well. The failures were not the model's fault. They came from three faults in the design, which the fake could never have shown:
+
+1. **Alternatives became separate requirements.** The vacancy asked for "5+ years with AWS, Azure, or GCP". The profile returned AWS, Azure and GCP as three required skills of five years each, and the same for three infrastructure tools. A "strong match" therefore had ten years of all three clouds: not a person anyone would believe.
+2. **Skill names that contain each other.** The profile listed both "AWS" and "AWS CDK". A candidate who had "AWS CDK" but not "AWS" could never pass the check "must not mention AWS", because naming one names the other. Three of the four failed candidates were of this kind: impossible by construction.
+3. **Activities as skills.** For adjacent roles the model returned items such as "monitoring", "troubleshooting" and "proactive measures". The rule "name a skill only in the jobs where it was used" cannot be kept for words that any CV for that job uses everywhere.
+
+**What was changed:**
+
+- A requirement is now a group: `{"any_of": ["AWS", "Azure", "GCP"], "min_years": 5}`. One alternative meets it. A strong match has one, sometimes a second for a shorter time.
+- The profile drops any skill name that contains another, or is contained in one (whole words only: "Go" and "Google" do not clash).
+- The rule about naming a skill only in its own jobs now covers the vacancy's skills only. The everyday skills of another job may appear anywhere.
+- Someone in the vacancy's own line of work now has at least one skill in every job. A cloud engineer's job with no skill to name was hard to write.
+- The CV prompt lists, per job, what not to name there, instead of leaving that to be worked out. The profile prompt asks for named things, not activities, and explains alternatives.
+- Both prompts became version 2. Version 1 produced results only in throwaway test databases, so it was replaced rather than kept.
+
+**Second attempt, same setup: 20 of 20 candidates, every CV usable on the first answer.**
+
+| | Calls | Tokens in | Tokens out | Estimated cost | Average latency |
+| --- | --- | --- | --- | --- | --- |
+| Vacancy | 1 | 470 | 603 | $0.00043 | 4.5 s |
+| Vacancy profile | 1 | 986 | 497 | $0.00045 | 2.8 s |
+| CVs | 20 | 12,608 | 7,925 | $0.00665 | 3.0 s |
+| **Total** | **22** | | | **$0.0075** | |
+
+- The 20 CVs took 19.5 seconds with four calls at a time. No rate-limit errors.
+- **$0.00033 per CV**, so about 3.5 cents for 100 candidates. An extrapolation, not yet measured at that size.
+- The profile for this vacancy: `AWS | Azure | GCP` (5 years), `Terraform` (3 years), `Python | Bash | Go`, `Docker | Kubernetes`, `Prometheus | Grafana | Datadog`, with four nice-to-haves. All named things.
+- Read by eye: one strong, one partial and one adjacent CV. The prose is fluent and specific. The strong match has ten years of GCP with Terraform, Go, Docker and Prometheus, which is believable.
+- **One artefact is visible:** a partial match who lacks every cloud is a "Cloud Engineer" whose CV never names a cloud ("cloud infrastructure using industry-leading tools"). That follows from the rule that a missing skill must not be mentioned. A real CV would not read like that.
+- The first attempt cost about one cent as well. Total real spend on this stage: about 2 cents.
+
 ## Still open
 
-- **Nothing has run against the real Mistral API.** This matters more now. The fake always obeys the three ground-truth rules. A real model will sometimes break them, and how often is unknown. If it is often, many CVs will need a retry or fail, and the prompt needs work.
-- **A real-API check is prepared**: `uv run pytest -m mistral tests/real -s` now also makes one profile call and four CV calls, and prints the problems found and the cost. Expected cost: under one cent.
-- **Cost of 100 candidates is an estimate only**: about 100 calls of roughly 600 tokens in and 500 out, so around 4 cents at the listed prices. To be measured.
+- **One vacancy, one sector, 20 candidates.** That is all the real evidence so far. Other sectors may give vaguer skills (a nurse or a teacher has fewer named tools), and a pool of 100 has not been run.
+- **The real run went through the API and the job runner, not through a browser.** The browser tests still use the fake.
+- **The selection script in stage 5 needs the same idea of alternatives.** A hard requirement "AWS" would wrongly drop an Azure engineer when the vacancy accepts either. To be decided with the author before stage 5 starts.
+- **Cost of 100 candidates is still an estimate**: at the measured $0.0003 per CV, about 3 cents plus retries. To be measured on a real run.
 - **Rate limits.** Four calls at a time is a guess. On a low tier, 100 CVs may be slow.
 - **The pool is easier than real life**, by design of the checks above: a candidate's CV never mentions a skill they lack. The README must say so (PRD section 14).
 - **Skill names are matched as whole words.** "Java" does not match "JavaScript", but a model that writes "Azure" where the blueprint says "Microsoft Azure" passes the check. That is harmless for ground truth and matters for scoring in stage 6.
