@@ -28,6 +28,7 @@ One role: **recruiter**. There is no login for individuals. A visitor enters an 
 - Generate 1 to 100 fictional candidates (CVs) per vacancy
 - Generate and edit a selection script (screening criteria) per vacancy
 - Generate a long list and a short list with a written reason per candidate
+- Generate interview questions for the short-listed candidates (F8)
 - An **access-code gate** in front of the whole app: 10 five-letter codes, each usable 20 times (F0)
 - Deployment online with cost and abuse protections
 - An evaluation that measures the quality of the lists against known ground truth
@@ -46,7 +47,8 @@ One role: **recruiter**. There is no login for individuals. A visitor enters an 
 | Draft | A vacancy that has been generated but not yet submitted |
 | Submitted vacancy | A vacancy that was submitted and now appears under "Submitted vacancies" |
 | Candidate | A fictional person with a CV, generated for one vacancy |
-| Selection script | The screening criteria for one vacancy: keywords, required years of experience, and for each whether it is a hard or soft requirement. Interpretation to confirm: this is a set of criteria, not a phone-call script. |
+| Selection script | The screening criteria for one vacancy: keywords, required years of experience, and for each whether it is a hard or soft requirement. This is a set of criteria, not a phone-call script. Interview questions are a separate item (F8). |
+| Interview questions | Questions for the interview stage, generated after the short list exists: a core set shared by all short-listed candidates, plus follow-up questions per candidate |
 | Long list | The best-matching subset of candidates, about 30%, at most 10 |
 | Short list | The very best subset, about 10%, at most 4, always a subset of the long list |
 
@@ -61,6 +63,7 @@ One role: **recruiter**. There is no login for individuals. A visitor enters an 
 [Submitted vacancies] -> list (or "No vacancies have yet been submitted")
         -> open one -> Edit vacancy | Generate candidates | Generate selection script
                       | Generate long-list | Generate short-list
+                      | Generate interview questions (on the short-list page)
 ```
 
 Both top-level buttons ("Generate vacancy" and "Submitted vacancies") are always visible.
@@ -104,7 +107,7 @@ The app will be online and calls a paid model, so nothing is reachable without a
   - **Seniority** (checkboxes, at least one): junior, medior, senior, lead.
   - **Work mode** (checkboxes, at least one): office-based, home-based, hybrid.
   - **Vacancy title** (text, required, length-limited).
-  - Additions I suggest: **language** (English by default, Dutch optional), an optional **company name** (a fictional one is generated if left empty), and an optional free-text field **"Anything to emphasise"** (limited length).
+  - Additions I suggest: an optional **company name** (a fictional one is generated if left empty), and an optional free-text field **"Anything to emphasise"** (limited length).
 - Submitting starts a background job. While it runs the dialog shows a **spinner** with a short status message, and the user can close the dialog without losing the job.
 - Failures show a clear message with a Retry button. A job that was interrupted by a restart is marked as such and can be retried.
 - The model returns **structured sections**, not one blob: title, company introduction, role summary, responsibilities, required qualifications, nice-to-haves, what we offer, location and work mode. Structure is needed so that later steps (candidates, criteria) can use it.
@@ -119,7 +122,7 @@ The app will be online and calls a paid model, so nothing is reachable without a
 ### F3 Submitted vacancies
 - If there are none: "No vacancies have yet been submitted".
 - Otherwise a list (title, sector, seniority, work mode, submitted date, status chips such as "20 candidates", "script ready", "long list ready").
-- Opening a vacancy shows its text and the actions: **Edit vacancy** (same editor as F2), **Generate candidates**, **Generate selection script**, **Generate long-list**, **Generate short-list**.
+- Opening a vacancy shows its text and the actions: **Edit vacancy** (same editor as F2), **Generate candidates**, **Generate selection script**, **Generate long-list**, **Generate short-list**. **Generate interview questions** sits on the short-list page (F8).
 - Actions whose prerequisites are missing are visible but disabled, with the reason shown ("Generate candidates first").
 - **Stale data:** if a vacancy is edited after candidates, a script or lists exist, those items are marked **out of date** with a warning, and regenerating them is a deliberate action.
 
@@ -141,7 +144,7 @@ The app will be online and calls a paid model, so nothing is reachable without a
 
 ### F6 Long list and short list
 - Both are available only when the vacancy, the candidates and a script exist.
-- **Sizes:** long list = `min(10, max(1, round(0.30 × N)))`, short list = `min(4, max(1, round(0.10 × N)))`, where N is the number of candidates. The short list is always a subset of the long list. For example: N = 100 gives 10 and 4, N = 20 gives 6 and 2, N = 5 gives 2 and 1.
+- **Sizes:** long list = `min(10, max(1, round(0.30 × N)))`, short list = `min(4, max(1, round(0.10 × N)))`, where N is the number of candidates. `round` means round half up, computed with integer arithmetic (not Python's built-in `round`, which rounds half to even), so N = 15 gives a long list of 5 and N = 25 gives a short list of 3. The short list is always a subset of the long list. For example: N = 100 gives 10 and 4, N = 20 gives 6 and 2, N = 5 gives 2 and 1.
 - **Method (two stages):**
   1. **Deterministic pre-scoring, by code** on a blind version of each CV: keyword matches, years of experience per keyword computed from the dated employment history, and hard-requirement checks.
   2. **LLM assessment** of the strongest candidates (for example the top 2 × the long-list size, or everyone if N is small). The model reads the blind CV, the vacancy and the script and returns a structured assessment: fit score, strengths, concerns, and a paragraph of reasoning. It is explicitly allowed to weigh more than keywords and years, such as the relevance of past roles and sectors, career progression, and transferable skills.
@@ -154,6 +157,23 @@ The app will be online and calls a paid model, so nothing is reachable without a
 - The detail view shows the evidence: which parts of the CV the claims come from.
 - A short, always-visible notice: "Suggestions to support a recruiter. A person decides."
 - Optional: export the list as CSV.
+
+### F8 Interview questions
+An add-on for the step after screening. It lives on the short-list page, because that is the moment a recruiter prepares interviews, and because the questions build on the assessments.
+
+- **Available only when a current short list exists.** Otherwise the button is visible but disabled, with the reason shown ("Generate the short list first").
+- **Two parts, generated by one background job** with progress ("x of N candidates"):
+  1. **Core questions** for the vacancy (about 6 to 8), derived from the vacancy and the selection script. Every short-listed candidate gets the same core questions, so interviews can be compared fairly.
+  2. **Follow-up questions per short-listed candidate** (about 3 to 5), derived from the blind CV and that candidate's assessment: strengths to verify and concerns to probe ("no experience with X").
+- **Structured output.** Each question has the question text, what it is meant to find out, and a link to its source: a selection-script item, or a strength or concern from the assessment. The UI shows the source next to the question.
+- **Built on checked claims only.** Follow-up questions use the assessment after the evidence check (F6), so a question never rests on a claim that was removed as unsupported. A code check confirms that every link points to an existing script item or assessment point; questions with a broken link are dropped and flagged.
+- **Blind.** The model gets the anonymised CV, as in F6. The candidate's name is joined back only for display.
+- **No discriminatory questions.** The prompt forbids questions about age, gender, family or pregnancy plans, health, religion, nationality or origin, and the same kind of code check as in F1 flags obvious terms for review.
+- **Editing.** The recruiter can edit, remove and add questions. The generated version stays available ("Reset to generated").
+- **Stale data.** If the vacancy, the script or the lists change, the questions are marked out of date. Regenerating replaces them, with a confirmation dialog.
+- **Limits.** The job costs at most 1 + 4 model calls (the short list has at most 4 entries). It counts towards the per-workspace limits and the usage records.
+- The notice from F7 also applies here: "Suggestions to support a recruiter. A person decides."
+- Optional: print or export the questions per candidate.
 
 ## 7. Responsible-AI design (my additions)
 
@@ -185,10 +205,11 @@ Recruitment is a sensitive use of AI. In the EU it is treated as high-risk, so t
 - **access_code**: id, label (c01 to c10), code_hash (HMAC-SHA256 with a pepper), uses, max_uses (default 20), disabled, last_used_at. The codes themselves are never stored.
 - **failed_attempt**: ip_hash, attempted_at (for rate limiting; the submitted code is not stored)
 - **workspace**: id, access_code_id, created_at, last_seen_at (for clean-up)
-- **vacancy**: id, workspace_id, status (generating, draft, submitted, failed), parameters (sector, seniority[], work_mode[], title, language, company, emphasis), sections (JSON), generated_sections (JSON, for "reset"), version, timestamps
+- **vacancy**: id, workspace_id, status (generating, draft, submitted, failed), parameters (sector, seniority[], work_mode[], title, company, emphasis), sections (JSON), generated_sections (JSON, for "reset"), version, timestamps
 - **candidate**: id, vacancy_id, blueprint (JSON, includes match category), cv (JSON), cv_text, name, email, phone
 - **selection_script**: id, vacancy_id, vacancy_version, items (JSON: keyword, min_years, kind hard or soft, reason, enabled)
 - **assessment**: id, vacancy_id, script_id, candidate_id, deterministic_score, llm_score, final_score, rationale, evidence (JSON), flags, in_long_list, in_short_list, run_id
+- **interview_question_set**: id, vacancy_id, script_id, run_id, candidate_id (empty for the core set), items (JSON: question, purpose, source kind and source reference), generated_items (JSON, for "reset"), flags, prompt_version, out_of_date
 - **job**: id, type, vacancy_id, status (queued, running, done, failed, interrupted), progress, error_kind, timestamps
 - **usage_record**: call_type, model, input_tokens, output_tokens, latency_ms, estimated_cost
 
@@ -205,7 +226,8 @@ Because candidates are built from known blueprints, the quality of the lists can
 | Consistency | Run the same input several times and measure the overlap of the lists |
 | Name-swap fairness test | Same CV with different fictional names must give the same score and reason within a small tolerance |
 | Vacancy quality | A simple rubric (all sections present, no discriminatory terms, matches the chosen parameters), checked in code where possible |
-| Cost and latency | Per vacancy, per 100 candidates and per list, from the usage records |
+| Interview-question quality | A rubric checked in code: every question links to an existing script item or assessment point, no discriminatory terms, core questions identical for all candidates, and follow-ups unchanged under the name swap within a small tolerance |
+| Cost and latency | Per vacancy, per 100 candidates, per list and per set of interview questions, from the usage records |
 
 Evaluation is a script that writes a report, not a test. Fakes that answer from the ground truth validate the evaluation code itself.
 
@@ -227,21 +249,26 @@ A public link to an app that calls a paid model needs protection.
 - **Accessibility:** dialogs trap focus and can be closed with Escape, controls are labelled, and the spinner has a text alternative.
 - **Reliability:** idempotent jobs, retries with backoff on model calls, validated structured output, and clear error messages.
 - **Privacy:** no real personal data anywhere. Logs contain ids and counts, not CV text.
-- **Language:** the UI in English. Content in English or Dutch depending on the vacancy language.
+- **Language:** the UI and all generated content in English.
 
 ## 13. Stages
 
 Each stage ends with working software, tests and a short note on what was learned.
 
-1. **Foundations, access gate and vacancy generation.** Repository, CI, database, the access-code gate and `manage_codes.py` (F0, built first so everything after it sits behind a session), Mistral client behind an interface with a fake, the generate dialog, background job and spinner, structured vacancy sections.
-2. **Review, edit, cancel, submit.** Editor, versions, reset, destructive-action confirmation, submitted list and empty state.
-3. **Candidates.** Blueprint sampler, CV generation in batches with progress, per-vacancy candidate page, regeneration with confirmation.
-4. **Selection script.** Proposal from the model, editing dialog, hard and soft logic, stale-data handling.
-5. **Long list and short list.** Blind CVs, deterministic scoring, LLM assessment, evidence check, sizes, output page.
-6. **Evaluation and hardening.** Evaluation scripts and report, name-swap test, rate limits, budget cap, workspace clean-up.
-7. **Deployment and write-up.** Railway deployment, README with measured results, honest limits, screenshots.
+0. **Skeleton.** Repository layout, `uv`, Docker Compose, database and Alembic, health endpoint, empty Vite app, CI.
+1. **Access gate.** The access-code gate and `manage_codes.py` (F0, built first so everything after it sits behind a session), session cookie, workspace, failed-attempt limits, code entry screen.
+2. **Vacancy generation.** Mistral client behind an interface with a fake, prompt files, background job and spinner, usage records, the generate dialog, structured vacancy sections.
+3. **Review, edit, cancel, submit.** Editor, versions, reset, destructive-action confirmation, submitted list and empty state.
+4. **Candidates.** Blueprint sampler, CV generation in batches with progress, per-vacancy candidate page, regeneration with confirmation.
+5. **Selection script.** Proposal from the model, editing dialog, hard and soft logic, stale-data handling.
+6. **Long list and short list.** Blind CVs, deterministic scoring, LLM assessment, evidence check, sizes, output page.
+7. **Interview questions.** Core and follow-up questions (F8), source links and link check, editing, stale-data handling.
+8. **Evaluation and hardening.** Evaluation scripts and report, name-swap test, daily spend cap, workspace clean-up.
+9. **Deployment and write-up.** Railway deployment, README with measured results, honest limits, screenshots.
 
-Stages 1 to 3 already give a presentable demo. Stage 5 is where the project becomes interesting.
+Per-workspace caps and usage records are added in the stage where each billable call first appears, not left to stage 8.
+
+Stages 0 to 4 already give a presentable demo. Stage 6 is where the project becomes interesting.
 
 ## 14. Honest limits to state in the README
 
@@ -284,11 +311,18 @@ Changes and additions I made, so you can accept or reject each one:
 
 ## 17. Open decisions
 
-- Interpretation of "selection script": criteria set (assumed here) or also interview questions.
-- Frontend: React (recommended) or HTMX.
-- Access gate: confirm that one "use" means one new session (assumed), not one request or one vacancy.
-- Contact method shown when a code is used up (for example the LinkedIn URL or an email address).
+Decided (2026-10-13):
+
+- "Selection script" is a criteria set. Interview questions are a separate add-on (F8).
+- Frontend: React with TypeScript (Vite).
+- Access gate: one "use" means one new session.
+- Contact link shown when a code is used up: the developer's LinkedIn profile, set through an environment variable.
+- Language of the UI and content: English only.
+- Stages: the ten stages in section 13 (0 to 9).
+- List sizes: round half up, with integer arithmetic (F6).
+
+Still open:
+
 - Whether to show different messages for an invalid and a used-up code (specified as different, as requested, with rate limiting to contain the leak).
-- Language of the UI and content: English only, or English and Dutch.
-- Which Mistral models to use per step, decided after a small comparison in stage 3 and 5.
-- Whether to include CSV export.
+- Which Mistral models to use per step, decided after a small comparison in stages 4 and 6.
+- Whether to include CSV export, and print or export of interview questions.

@@ -22,7 +22,7 @@ It is a demo, not a product. **All candidates are fictional.** There is no real 
 3. **Blind screening.** The scoring and assessment steps receive an anonymised CV: no name, email, phone or other personal details. Contact details are joined back only when a list is displayed. A test feeds a CV with identifiable details and checks that none reach the model input.
 4. **Facts are computed by code, not claimed by the model.** Years of experience are computed from the dated employment history. Keywords counted as "found" must appear in the CV text. The model's claims are checked, and unsupported ones are removed from the rationale and flagged.
 5. **Hard and soft requirements are applied in one function.** A hard requirement must be met for a candidate to be listed, unless too few candidates meet it, in which case the candidate is listed with a visible flag. A soft requirement only adds to the score.
-6. **List sizes come from one function.** Long list = `min(10, max(1, round(0.30 × N)))`, short list = `min(4, max(1, round(0.10 × N)))`. The short list is always a subset of the long list. Test the edges: N = 1, 2, 5, 10, 20, 100.
+6. **List sizes come from one function.** Long list = `min(10, max(1, round(0.30 × N)))`, short list = `min(4, max(1, round(0.10 × N)))`. `round` is round half up with integer arithmetic, not Python's built-in `round`. The short list is always a subset of the long list. Test the edges: N = 1, 2, 5, 10, 15, 20, 25, 100.
 7. **Candidates are capped at 100 on the server**, not only in the form. Validate every input on the server.
 8. **One deletion path for "cancel vacancy".** It deletes the draft and all related data, and requires an explicit confirmation flag from the caller. The UI shows a confirmation dialog stating what will be deleted. A test checks that no data remains.
 9. **Stale data is marked, never silently reused.** If a vacancy changes after candidates, a script or lists exist, those items are flagged as out of date. Regenerating is a deliberate action.
@@ -44,12 +44,12 @@ It is a demo, not a product. **All candidates are fictional.** There is no real 
 
 - Python 3.12, FastAPI, async throughout. PostgreSQL with SQLAlchemy 2 (async) and Alembic. Pydantic v2 for schemas and settings.
 - Official Mistral Python SDK, used directly (no LangChain, on purpose). Keep it behind our own interface so it can be faked and swapped.
-- Frontend: React with TypeScript (Vite), unless the PRD's open decision says HTMX. Do not decide this silently.
+- Frontend: React with TypeScript (Vite).
 - `uv` for Python dependencies. Pin versions. Do not add a dependency without saying why.
 - Type hints everywhere. `mypy --strict` and `ruff` must pass. For the frontend: TypeScript strict mode and ESLint.
 - Prompts are versioned files in `prompts/`, not inline strings. The file name is the version, and it is stored with each generated result.
 - **Pin exact Mistral model versions in configuration.** Do not use `-latest` aliases for evaluation runs. Use low temperature for assessments.
-- Small modules with one job each. Suggested layout: `app/llm`, `app/vacancy`, `app/candidates`, `app/script`, `app/screening`, `app/jobs`, `app/limits`, `app/web`, plus `prompts/`, `tests/`, `scripts/`, `cards/`, `deploy/`, `web/` (frontend).
+- Small modules with one job each. Suggested layout: `app/llm`, `app/vacancy`, `app/candidates`, `app/script`, `app/screening`, `app/interview`, `app/jobs`, `app/limits`, `app/web`, plus `prompts/`, `tests/`, `scripts/`, `cards/`, `deploy/`, `web/` (frontend).
 - Code, comments and docs in English.
 
 ## UI requirements to keep in mind
