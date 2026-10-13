@@ -11,7 +11,8 @@ The full specification is in [docs/PRD.md](docs/PRD.md). Notes per stage are in 
 Built in ten stages (PRD section 13). Done so far:
 
 - **Stage 0, skeleton:** backend with a health endpoint, database and migration setup, an empty frontend, tests and CI.
-- **Stage 1, access gate:** nothing is reachable without an access code. Codes are limited to 20 uses, counted atomically, stored only as keyed hashes, and protected against guessing. No model calls yet.
+- **Stage 1, access gate:** nothing is reachable without an access code. Codes are limited to 20 uses, counted atomically, stored only as keyed hashes, and protected against guessing.
+- **Stage 2, vacancy generation:** a dialog with a few choices starts a background job; the model writes a vacancy in structured sections. Every model call goes through one module, returns validated JSON, and leaves a usage record. Tested with a fake model only: nothing has run against the real Mistral API yet.
 
 ## Run it locally
 
@@ -28,6 +29,17 @@ npm --prefix web run dev                 # frontend on http://localhost:5173
 ```
 
 Before the first run, copy `.env.example` to `.env` and fill in the two secrets (`ACCESS_CODE_PEPPER` and `SESSION_SECRET`). The file explains how to generate them. The app does not start without them. Never commit `.env`.
+
+## The model
+
+`LLM_PROVIDER` in `.env` chooses the model:
+
+- `fake` answers without the network and without cost. Use it for development. Its text is labelled "[Fake model output]".
+- `mistral` calls the real Mistral API and costs money. It needs `MISTRAL_API_KEY`.
+
+The model version is pinned in `MISTRAL_MODEL_VACANCY`. A model also needs a price in `app/llm/pricing.py`, or the app refuses to start. Prompts are versioned files in `prompts/`.
+
+Jobs run inside the web process, so run exactly one process (no `--workers`, one replica).
 
 ## Access codes
 
@@ -52,6 +64,8 @@ uv run ruff check . && uv run ruff format --check . && uv run mypy .
 uv run pytest tests/unit tests/integration --cov --cov-fail-under=70   # needs the local PostgreSQL
                                          # tests use their own database (recruitdesk_test) and fake secrets
 uv run python scripts/check_tracked_files.py    # no access codes or .env files tracked by Git
+
+uv run pytest -m mistral tests/real -s             # ONE real Mistral call; costs money, needs MISTRAL_API_KEY
 
 npm --prefix web run lint
 npm --prefix web run build      # type check and production build

@@ -1,17 +1,180 @@
 :root {
+  --text: #1f2933;
+  --muted: #5b6672;
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --border: #d5dae0;
+  --accent: #1d4ed8;
+  --accent-text: #ffffff;
+  --danger: #b91c1c;
+  --warn-bg: #fff7e6;
+  --warn-border: #f0b429;
+
   font: 16px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
   color-scheme: light dark;
+  color: var(--text);
+  background: var(--bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #e6e9ed;
+    --muted: #a3acb8;
+    --bg: #14171c;
+    --surface: #1d2128;
+    --border: #353b45;
+    --accent: #6d94ff;
+    --accent-text: #0b1020;
+    --danger: #fca5a5;
+    --warn-bg: #33290f;
+    --warn-border: #b7791f;
+  }
 }
 
 body {
   margin: 0;
 }
 
-main {
+main,
+.top {
   max-width: 60rem;
   margin: 0 auto;
-  padding: 2rem 1rem;
+  padding: 1.5rem 1rem;
 }
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.top h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.top p {
+  margin: 0;
+}
+
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+h2 {
+  font-size: 1.35rem;
+}
+
+h3 {
+  font-size: 1.05rem;
+  margin-bottom: 0.25rem;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0.25rem 0;
+}
+
+.problem {
+  color: var(--danger);
+  margin: 0.25rem 0;
+}
+
+/* Buttons and fields */
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+button.plain {
+  padding: 0;
+  border: none;
+  background: none;
+  font-weight: inherit;
+}
+
+button[aria-current='page'] {
+  border-color: var(--accent);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+input[type='text'],
+select,
+textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--surface);
+}
+
+.field {
+  margin: 1rem 0;
+}
+
+.field > label,
+legend {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+fieldset {
+  margin: 1rem 0;
+  padding: 0;
+  border: none;
+}
+
+.choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-right: 1rem;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+/* Code entry screen */
 
 .gate form {
   display: flex;
@@ -26,30 +189,112 @@ main {
   font-weight: 600;
 }
 
-.gate input {
-  font: inherit;
-  padding: 0.5rem 0.75rem;
+.gate input[type='text'] {
   width: 10rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
 }
 
-button {
-  font: inherit;
-  padding: 0.5rem 1rem;
-  cursor: pointer;
+/* Cards */
+
+.cards {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
 }
 
-button:disabled {
-  cursor: not-allowed;
+.card {
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: var(--surface);
 }
 
-.problem {
-  color: #b91c1c;
+.card h3 {
+  margin-top: 0;
 }
 
-@media (prefers-color-scheme: dark) {
-  .problem {
-    color: #fca5a5;
+/* Spinner: the text next to it says what is happening */
+
+.spinner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.spinner-icon {
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner-icon {
+    animation-duration: 4s;
+  }
+}
+
+/* Dialog */
+
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 45%);
+}
+
+.dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  width: min(34rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  box-shadow: 0 20px 50px rgb(0 0 0 / 25%);
+}
+
+.dialog h2 {
+  margin-top: 0;
+}
+
+.dialog-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  padding: 0.1rem 0.6rem;
+  font-size: 1.25rem;
+  line-height: 1.2;
+}
+
+/* Vacancy */
+
+.vacancy h2 {
+  margin-bottom: 0;
+}
+
+.flags {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--warn-border);
+  border-radius: 0.5rem;
+  background: var(--warn-bg);
+}
+
+.flags h3 {
+  margin-top: 0;
 }

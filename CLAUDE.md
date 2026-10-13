@@ -110,6 +110,7 @@ uv run uvicorn app.main:app --reload          # backend on http://localhost:8000
 npm --prefix web install && npm --prefix web run dev   # frontend dev server on http://localhost:5173
 uv run pytest tests/unit tests/integration    # fast tests, no network. They create and use their own database (<name>_test) with fake secrets
 uv run pytest tests/unit tests/integration --cov --cov-fail-under=70   # as CI runs them, with the coverage gate
+uv run pytest -m mistral tests/real -s        # real Mistral API, costs money: only on request, never in CI
 uv run ruff check . && uv run ruff format --check . && uv run mypy .
 uv run python scripts/check_tracked_files.py  # fails if Git tracks a codes file or a .env file
 uv run python scripts/manage_codes.py status  # uses per code label (never prints the codes)

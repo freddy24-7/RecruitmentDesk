@@ -7,6 +7,7 @@ All secrets here are obviously fake.
 
 import os
 
+from dotenv import dotenv_values
 from sqlalchemy.engine import make_url
 
 LOCAL_DATABASE = (
@@ -27,3 +28,15 @@ os.environ["SESSION_IDLE_HOURS"] = "24"
 os.environ["FAILED_ATTEMPTS_PER_IP"] = "10"
 os.environ["FAILED_ATTEMPTS_WINDOW_MINUTES"] = "15"
 os.environ["FAILED_ATTEMPTS_GLOBAL_PER_HOUR"] = "100"
+# Tests never call the real model. The key is moved aside, where only the
+# tests marked `mistral` (run on request) look for it.
+os.environ["RECRUITDESK_REAL_MISTRAL_API_KEY"] = (
+    os.environ.get("MISTRAL_API_KEY")
+    or dotenv_values(".env").get("MISTRAL_API_KEY")
+    or ""
+)
+os.environ["LLM_PROVIDER"] = "fake"
+os.environ["MISTRAL_API_KEY"] = ""
+os.environ["MISTRAL_MODEL_VACANCY"] = "mistral-small-2603"
+os.environ["FAKE_LLM_DELAY_SECONDS"] = "0"
+os.environ["MAX_VACANCY_GENERATIONS_PER_WORKSPACE"] = "10"

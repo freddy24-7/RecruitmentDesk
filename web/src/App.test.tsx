@@ -1,81 +1,82 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { afterEach, expect, test, vi } from 'vitest'
 import App from './App.tsx'
+import { json, mockApi, SESSION } from './test/api.ts'
 
 // "TESTA" is an obviously fake code. Real codes never appear in the repository.
-const SESSION = { workspace_id: 'workspace-1', idle_hours: 24 }
 
-function json(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
-
-const fetchMock = vi.fn<typeof fetch>()
-
-beforeEach(() => {
-  vi.stubGlobal('fetch', fetchMock)
-})
+const NO_SESSION = () => json(401, { error: 'no_session' })
 
 afterEach(() => {
-  fetchMock.mockReset()
   vi.unstubAllGlobals()
 })
 
+async function enterCode(code: string) {
+  const user = userEvent.setup()
+  await user.type(await screen.findByLabelText('Access code'), code)
+  await user.click(screen.getByRole('button', { name: 'Enter' }))
+}
+
 test('without a session only the code entry screen is shown', async () => {
-  fetchMock.mockResolvedValueOnce(json(401, { error: 'no_session' }))
+  mockApi({ 'GET /api/session': NO_SESSION })
 
   render(<App />)
 
   expect(await screen.findByLabelText('Access code')).toBeInTheDocument()
-  expect(screen.queryByText(/workspace is ready/i)).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: 'Generate vacancy' }),
+  ).not.toBeInTheDocument()
 })
 
 test('with a session the code is not asked for again', async () => {
-  fetchMock.mockResolvedValueOnce(json(200, SESSION))
+  const calls = mockApi({
+    'GET /api/session': () => json(200, SESSION),
+    'GET /api/vacancies': () => json(200, []),
+  })
 
   render(<App />)
 
-  expect(await screen.findByText(/workspace is ready/i)).toBeInTheDocument()
+  expect(
+    await screen.findByRole('button', { name: 'Generate vacancy' }),
+  ).toBeInTheDocument()
   expect(screen.queryByLabelText('Access code')).not.toBeInTheDocument()
-  // Only the session check: no code was redeemed.
-  expect(fetchMock).toHaveBeenCalledTimes(1)
-  expect(fetchMock).toHaveBeenCalledWith('/api/session')
+  // No code was redeemed.
+  expect(calls.map((call) => call.route)).not.toContain('POST /api/session')
 })
 
 test('a valid code opens the workspace', async () => {
-  fetchMock.mockResolvedValueOnce(json(401, { error: 'no_session' }))
-  fetchMock.mockResolvedValueOnce(json(200, SESSION))
-  const user = userEvent.setup()
+  const calls = mockApi({
+    'GET /api/session': NO_SESSION,
+    'POST /api/session': () => json(200, SESSION),
+    'GET /api/vacancies': () => json(200, []),
+  })
   render(<App />)
 
-  await user.type(await screen.findByLabelText('Access code'), 'testa')
-  await user.click(screen.getByRole('button', { name: 'Enter' }))
+  await enterCode('testa')
 
-  expect(await screen.findByText(/workspace is ready/i)).toBeInTheDocument()
+  expect(
+    await screen.findByRole('button', { name: 'Generate vacancy' }),
+  ).toBeInTheDocument()
   // The code is sent in the request body, not in the URL.
-  expect(fetchMock).toHaveBeenLastCalledWith('/api/session', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code: 'testa' }),
+  expect(calls).toContainEqual({
+    route: 'POST /api/session',
+    body: { code: 'testa' },
   })
 })
 
 test('an invalid code shows the message from the server', async () => {
-  fetchMock.mockResolvedValueOnce(json(401, { error: 'no_session' }))
-  fetchMock.mockResolvedValueOnce(
-    json(401, {
-      error: 'invalid_code',
-      message: 'That code is not valid. Check the code and try again.',
-    }),
-  )
-  const user = userEvent.setup()
+  mockApi({
+    'GET /api/session': NO_SESSION,
+    'POST /api/session': () =>
+      json(401, {
+        error: 'invalid_code',
+        message: 'That code is not valid. Check the code and try again.',
+      }),
+  })
   render(<App />)
 
-  await user.type(await screen.findByLabelText('Access code'), 'ZZZZZ')
-  await user.click(screen.getByRole('button', { name: 'Enter' }))
+  await enterCode('ZZZZZ')
 
   expect(await screen.findByRole('alert')).toHaveTextContent(
     'That code is not valid. Check the code and try again.',
@@ -85,20 +86,19 @@ test('an invalid code shows the message from the server', async () => {
 })
 
 test('a used-up code shows the message with a contact link', async () => {
-  fetchMock.mockResolvedValueOnce(json(401, { error: 'no_session' }))
-  fetchMock.mockResolvedValueOnce(
-    json(403, {
-      error: 'code_exhausted',
-      message:
-        'This access code has been used the maximum number of times. Please contact the developer to get a new code.',
-      contact_url: 'https://example.com/contact',
-    }),
-  )
-  const user = userEvent.setup()
+  mockApi({
+    'GET /api/session': NO_SESSION,
+    'POST /api/session': () =>
+      json(403, {
+        error: 'code_exhausted',
+        message:
+          'This access code has been used the maximum number of times. Please contact the developer to get a new code.',
+        contact_url: 'https://example.com/contact',
+      }),
+  })
   render(<App />)
 
-  await user.type(await screen.findByLabelText('Access code'), 'TESTA')
-  await user.click(screen.getByRole('button', { name: 'Enter' }))
+  await enterCode('TESTA')
 
   expect(await screen.findByRole('alert')).toHaveTextContent(
     /used the maximum number of times/,
@@ -109,18 +109,17 @@ test('a used-up code shows the message with a contact link', async () => {
 })
 
 test('a lockout shows the message from the server', async () => {
-  fetchMock.mockResolvedValueOnce(json(401, { error: 'no_session' }))
-  fetchMock.mockResolvedValueOnce(
-    json(429, {
-      error: 'too_many_attempts',
-      message: 'Too many attempts. Please wait a while and try again.',
-    }),
-  )
-  const user = userEvent.setup()
+  mockApi({
+    'GET /api/session': NO_SESSION,
+    'POST /api/session': () =>
+      json(429, {
+        error: 'too_many_attempts',
+        message: 'Too many attempts. Please wait a while and try again.',
+      }),
+  })
   render(<App />)
 
-  await user.type(await screen.findByLabelText('Access code'), 'TESTA')
-  await user.click(screen.getByRole('button', { name: 'Enter' }))
+  await enterCode('TESTA')
 
   expect(await screen.findByRole('alert')).toHaveTextContent(
     'Too many attempts. Please wait a while and try again.',
@@ -128,7 +127,7 @@ test('a lockout shows the message from the server', async () => {
 })
 
 test('the Enter button is disabled until something is typed', async () => {
-  fetchMock.mockResolvedValueOnce(json(401, { error: 'no_session' }))
+  mockApi({ 'GET /api/session': NO_SESSION })
   const user = userEvent.setup()
   render(<App />)
 
@@ -143,13 +142,20 @@ test('the Enter button is disabled until something is typed', async () => {
 })
 
 test('a network failure while entering a code is reported', async () => {
-  fetchMock.mockResolvedValueOnce(json(401, { error: 'no_session' }))
-  fetchMock.mockRejectedValueOnce(new TypeError('network down'))
-  const user = userEvent.setup()
+  let first = true
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => {
+      if (first) {
+        first = false
+        return json(401, { error: 'no_session' })
+      }
+      throw new TypeError('network down')
+    }),
+  )
   render(<App />)
 
-  await user.type(await screen.findByLabelText('Access code'), 'TESTA')
-  await user.click(screen.getByRole('button', { name: 'Enter' }))
+  await enterCode('TESTA')
 
   expect(await screen.findByRole('alert')).toHaveTextContent(
     'Could not reach the server. Please try again.',
@@ -157,11 +163,32 @@ test('a network failure while entering a code is reported', async () => {
 })
 
 test('an unreachable server on page load is reported', async () => {
-  fetchMock.mockRejectedValueOnce(new TypeError('network down'))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => {
+      throw new TypeError('network down')
+    }),
+  )
 
   render(<App />)
 
   expect(await screen.findByRole('alert')).toHaveTextContent(
     /could not reach the server/i,
   )
+})
+
+test('when the session ends, the visitor is back at the code entry screen', async () => {
+  mockApi({
+    'GET /api/session': () => json(200, SESSION),
+    // The session expired between the two calls.
+    'GET /api/vacancies': () =>
+      json(401, { error: 'no_session', message: 'Enter an access code.' }),
+  })
+
+  render(<App />)
+
+  expect(await screen.findByLabelText('Access code')).toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: 'Generate vacancy' }),
+  ).not.toBeInTheDocument()
 })

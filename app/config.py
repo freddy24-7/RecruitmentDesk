@@ -1,6 +1,7 @@
 """Application settings, read from the environment (and `.env` in development)."""
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -38,6 +39,19 @@ class Settings(BaseSettings):
     failed_attempts_window_minutes: int = 15
     failed_attempts_global_per_hour: int = 100
 
+    # The model. `fake` answers without the network and without cost: use it
+    # in development. Tests always use the fake.
+    llm_provider: Literal["mistral", "fake"] = "mistral"
+    mistral_api_key: SecretStr | None = None
+    # Exact, pinned model versions. No `-latest` aliases (CLAUDE.md).
+    mistral_model_vacancy: str = "mistral-small-2603"
+    llm_timeout_seconds: int = 60
+    # Makes the fake slow enough to see the spinner in development.
+    fake_llm_delay_seconds: float = 0.0
+
+    # Per-workspace limits on billable work (see app/limits/workspace.py).
+    max_vacancy_generations_per_workspace: int = 10
+
     @field_validator("database_url")
     @classmethod
     def use_async_driver(cls, value: str) -> str:
@@ -60,6 +74,13 @@ class Settings(BaseSettings):
     @classmethod
     def empty_means_none(cls, value: str | None) -> str | None:
         return (value or "").strip() or None
+
+    @field_validator("mistral_api_key")
+    @classmethod
+    def empty_key_means_none(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is None or not value.get_secret_value().strip():
+            return None
+        return SecretStr(value.get_secret_value().strip())
 
 
 @lru_cache

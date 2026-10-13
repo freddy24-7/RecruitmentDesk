@@ -18,6 +18,8 @@ from app.access.codes import hash_code
 from app.access.models import AccessCode
 from app.config import get_settings
 from app.db import get_sessionmaker
+from app.jobs.runner import JobRunner
+from app.llm.fake import FakeLlm
 from app.main import create_app
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -66,8 +68,8 @@ async def clean_tables(database: None) -> None:
     async with get_sessionmaker()() as session:
         await session.execute(
             text(
-                "TRUNCATE workspace, failed_attempt, access_code "
-                "RESTART IDENTITY CASCADE"
+                "TRUNCATE usage_record, job, vacancy, workspace, failed_attempt, "
+                "access_code RESTART IDENTITY CASCADE"
             )
         )
         await session.commit()
@@ -80,8 +82,22 @@ async def db() -> AsyncIterator[AsyncSession]:
 
 
 @pytest.fixture
-def app() -> FastAPI:
-    return create_app()
+def llm() -> FakeLlm:
+    """The stand-in for the model. Tests script its answers and read its requests."""
+    return FakeLlm()
+
+
+@pytest.fixture
+async def app(llm: FakeLlm) -> AsyncIterator[FastAPI]:
+    app = create_app(llm_client=llm)
+    yield app
+    await app.state.job_runner.shutdown()
+
+
+@pytest.fixture
+def runner(app: FastAPI) -> JobRunner:
+    runner: JobRunner = app.state.job_runner
+    return runner
 
 
 @pytest.fixture
@@ -141,3 +157,22 @@ def uses_of(db: AsyncSession) -> Callable[[str], Awaitable[int]]:
         return uses
 
     return read
+
+
+@pytest.fixture
+def signed_in(
+    client_for: ClientFor, add_code: AddCode
+) -> Callable[..., Awaitable[httpx.AsyncClient]]:
+    """A client that has entered a valid code, so it has its own workspace."""
+    state = {"code_added": False}
+
+    async def sign_in(ip: str = "203.0.113.10") -> httpx.AsyncClient:
+        if not state["code_added"]:
+            await add_code(VALID_CODE, label="c01")
+            state["code_added"] = True
+        client = client_for(ip)
+        response = await client.post("/api/session", json={"code": VALID_CODE})
+        assert response.status_code == 200
+        return client
+
+    return sign_in

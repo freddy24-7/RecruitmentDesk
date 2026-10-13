@@ -20,6 +20,9 @@ if config.config_file_name is not None:
 
 # Import model modules here as they are added, so autogenerate can see them.
 import app.access.models  # noqa: E402, F401
+import app.jobs.models  # noqa: E402, F401
+import app.llm.usage  # noqa: E402, F401
+import app.vacancy.models  # noqa: E402, F401
 
 target_metadata = Base.metadata
 

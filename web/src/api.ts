@@ -6,6 +6,63 @@ export type Session = {
   idle_hours: number
 }
 
+export type VacancyOptions = {
+  sectors: string[]
+  seniorities: string[]
+  work_modes: string[]
+  title_max: number
+  company_max: number
+  emphasis_max: number
+}
+
+export type VacancyChoices = {
+  sector: string
+  seniority: string[]
+  work_mode: string[]
+  title: string
+  company: string | null
+  emphasis: string | null
+}
+
+export type VacancySections = {
+  title: string
+  company_intro: string
+  role_summary: string
+  responsibilities: string[]
+  required_qualifications: string[]
+  nice_to_haves: string[]
+  what_we_offer: string[]
+  location_and_work_mode: string
+}
+
+export type Flag = {
+  section: string
+  term: string
+  attribute: string
+}
+
+export type Job = {
+  id: string
+  type: string
+  status: 'queued' | 'running' | 'done' | 'failed' | 'interrupted'
+  progress_done: number
+  progress_total: number
+  error_kind: string | null
+  message: string | null
+  vacancy_id: string | null
+}
+
+export type Vacancy = {
+  id: string
+  status: 'generating' | 'draft' | 'submitted' | 'failed'
+  parameters: VacancyChoices
+  sections: VacancySections | null
+  flags: Flag[]
+  version: number
+  created_at: string
+  job: Job | null
+}
+
 type ErrorBody = {
   error?: string
   message?: string
@@ -36,27 +93,57 @@ async function toApiError(response: Response): Promise<ApiError> {
   return new ApiError(response.status, body)
 }
 
-/** The current session, or null if the visitor still has to enter a code. */
-export async function getSession(): Promise<Session | null> {
-  const response = await fetch('/api/session')
-  if (response.status === 401) {
-    return null
-  }
+async function request<T>(
+  method: 'GET' | 'POST',
+  path: string,
+  body?: unknown,
+): Promise<T> {
+  const response =
+    method === 'GET'
+      ? await fetch(path)
+      : await fetch(path, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body ?? {}),
+        })
   if (!response.ok) {
     throw await toApiError(response)
   }
-  return (await response.json()) as Session
+  return (await response.json()) as T
+}
+
+/** The current session, or null if the visitor still has to enter a code. */
+export async function getSession(): Promise<Session | null> {
+  try {
+    return await request<Session>('GET', '/api/session')
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      return null
+    }
+    throw error
+  }
 }
 
 /** Redeem an access code. The code goes in the body, never in the URL. */
-export async function startSession(code: string): Promise<Session> {
-  const response = await fetch('/api/session', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code }),
-  })
-  if (!response.ok) {
-    throw await toApiError(response)
-  }
-  return (await response.json()) as Session
+export function startSession(code: string): Promise<Session> {
+  return request<Session>('POST', '/api/session', { code })
+}
+
+export function getVacancyOptions(): Promise<VacancyOptions> {
+  return request<VacancyOptions>('GET', '/api/vacancy-options')
+}
+
+export function listVacancies(): Promise<Vacancy[]> {
+  return request<Vacancy[]>('GET', '/api/vacancies')
+}
+
+/** Starts a background job and returns at once. */
+export function generateVacancy(
+  choices: VacancyChoices,
+): Promise<{ vacancy_id: string; job_id: string }> {
+  return request('POST', '/api/vacancies', choices)
+}
+
+export function retryJob(jobId: string): Promise<Job> {
+  return request<Job>('POST', `/api/jobs/${jobId}/retry`)
 }
