@@ -16,6 +16,8 @@ function item(overrides: Partial<ScriptItem> = {}): ScriptItem {
     kind: 'hard',
     reason: 'Experience with Microsoft Azure',
     grounded: true,
+    source: 'required_qualifications',
+    note: '',
     enabled: true,
     ...overrides,
   }
@@ -30,6 +32,15 @@ const PROPOSED: ScriptItem[] = [
     kind: 'soft',
     reason: 'Agile ways of working are a plus',
     grounded: false,
+    source: '',
+  }),
+  item({
+    any_of: ['Python'],
+    min_years: 0,
+    kind: 'soft',
+    reason: 'Improve the way the team works',
+    source: 'responsibilities',
+    note: 'Proposed as hard, made soft: it is not in the required qualifications.',
   }),
 ]
 
@@ -138,10 +149,25 @@ test('each item shows its reason, and says when it is not in the vacancy', async
 
   const first = await within(dialog).findByRole('group', { name: 'Item 1' })
   expect(first).toHaveTextContent(
-    'From the vacancy: “Experience with Microsoft Azure”',
+    'From the required qualifications: “Experience with Microsoft Azure”',
   )
   expect(within(dialog).getByRole('group', { name: 'Item 3' })).toHaveTextContent(
     'Reason given by the model, not found in the vacancy text: “Agile ways of working are a plus”',
+  )
+})
+
+test('an item the code made soft says where it came from and why', async () => {
+  withProposal()
+
+  const { dialog } = await openDialog()
+
+  const fourth = await within(dialog).findByRole('group', { name: 'Item 4' })
+  expect(within(fourth).getByLabelText('Requirement')).toHaveValue('soft')
+  expect(fourth).toHaveTextContent(
+    'From the responsibilities: “Improve the way the team works”',
+  )
+  expect(fourth).toHaveTextContent(
+    'Proposed as hard, made soft: it is not in the required qualifications.',
   )
 })
 
@@ -171,7 +197,8 @@ test('the recruiter edits, removes and adds items, and submit saves the script',
     ),
     'soft',
   )
-  // Remove one, add one.
+  // Remove two, add one.
+  await user.click(within(dialog).getByRole('button', { name: 'Remove item 4' }))
   await user.click(within(dialog).getByRole('button', { name: 'Remove item 3' }))
   await user.click(within(dialog).getByRole('button', { name: 'Add item' }))
   const added = within(dialog).getByRole('group', { name: 'Item 3' })
@@ -191,6 +218,8 @@ test('the recruiter edits, removes and adds items, and submit saves the script',
           kind: 'hard',
           reason: 'Experience with Microsoft Azure',
           grounded: false,
+          source: '',
+          note: '',
           enabled: true,
         },
         {
@@ -199,6 +228,8 @@ test('the recruiter edits, removes and adds items, and submit saves the script',
           kind: 'soft',
           reason: '2 years of Terraform',
           grounded: false,
+          source: '',
+          note: '',
           enabled: true,
         },
         {
@@ -207,6 +238,8 @@ test('the recruiter edits, removes and adds items, and submit saves the script',
           kind: 'hard',
           reason: '',
           grounded: false,
+          source: '',
+          note: '',
           enabled: true,
         },
       ],
@@ -266,7 +299,7 @@ test('a script without items cannot be submitted', async () => {
   const { user, dialog } = await openDialog()
   await within(dialog).findByRole('group', { name: 'Item 1' })
 
-  for (const number of [3, 2, 1]) {
+  for (const number of [4, 3, 2, 1]) {
     await user.click(
       within(dialog).getByRole('button', { name: `Remove item ${number}` }),
     )

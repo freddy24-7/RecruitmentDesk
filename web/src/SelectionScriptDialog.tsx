@@ -12,6 +12,14 @@ import {
 } from './vacancies.ts'
 
 const MAX_YEARS = 20
+
+const SOURCE_NAMES: Record<string, string> = {
+  required_qualifications: 'From the required qualifications',
+  nice_to_haves: 'From the nice-to-haves',
+  responsibilities: 'From the responsibilities',
+  role_summary: 'From the role summary',
+  title: 'From the title',
+}
 const MAX_ALTERNATIVES = 4
 
 /** The request for a proposal. Owned by the page, which also starts it on opening. */
@@ -152,6 +160,8 @@ type Row = {
   kind: 'hard' | 'soft'
   reason: string
   grounded: boolean
+  source: string
+  note: string
 }
 
 function toRow(item: ScriptItem, id: number): Row {
@@ -162,6 +172,8 @@ function toRow(item: ScriptItem, id: number): Row {
     kind: item.kind,
     reason: item.reason,
     grounded: item.grounded,
+    source: item.source,
+    note: item.note,
   }
 }
 
@@ -226,6 +238,8 @@ function ScriptEditor({
         reason: row.reason,
         // Decided by the server; what is sent here is ignored.
         grounded: false,
+        source: '',
+        note: '',
         enabled: true,
       })),
       { onSuccess: onClose },
@@ -243,6 +257,8 @@ function ScriptEditor({
         <li>
           <strong>Hard:</strong> a candidate must meet it to be listed.{' '}
           <strong>Soft:</strong> it adds to the score but is not required.
+          Only the required qualifications are proposed as hard; you can make
+          any item hard yourself.
         </li>
         <li>
           Separate alternatives with a comma. A candidate needs only one of
@@ -329,11 +345,12 @@ function ScriptEditor({
                 {row.reason && (
                   <p className="hint">
                     {row.grounded
-                      ? 'From the vacancy: '
+                      ? `${SOURCE_NAMES[row.source] ?? 'From the vacancy'}: `
                       : 'Reason given by the model, not found in the vacancy text: '}
                     “{row.reason}”
                   </p>
                 )}
+                {row.note && <p className="hint">{row.note}</p>}
               </fieldset>
             </li>
           )
@@ -353,6 +370,8 @@ function ScriptEditor({
                 kind: 'soft',
                 reason: '',
                 grounded: false,
+                source: '',
+                note: '',
               },
             ])
             setNextId(nextId + 1)

@@ -89,7 +89,7 @@ One real vacancy (senior cloud engineer), 20 real candidates (3 strong, 7 partia
 
 ## Still open
 
-- **The script and the candidate pool disagree** (see above). Options: leave it to the recruiter, who reviews the script; let the script proposal see the vacancy profile's vocabulary; or have the proposal mark items that come from the responsibilities as soft. To be decided with the author.
+- **The script and the candidate pool disagree** (see above). Decided with the author: option B. A proposed item can only be hard if its quote comes from the required qualifications; code finds the section of each quote and turns anything else into a soft item, with a note in the dialog that says so. The recruiter can still make any item hard. Implemented and tested with the fake model; not yet re-run against the real model.
 - **Near-misses in wording**: the profile planted "subnets", the script asked for "subnet". Whole-word matching misses that.
 - **Does the model's fit score add anything over the computed score?** In both pools it agreed with it on the order of the top six. Two pools cannot show more.
 - **Evidence accuracy of 63 to 75% means a quarter to a third of the model's claims were wrong.** The check removes them, so the recruiter does not see them, but it shows how much the check is needed.

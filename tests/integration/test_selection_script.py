@@ -111,6 +111,8 @@ async def test_the_model_proposes_items_in_the_background(
         "kind": "hard",
         "reason": "Experience with Microsoft Azure",
         "grounded": True,
+        "source": "required_qualifications",
+        "note": "",
         "enabled": True,
     }
     assert [item["kind"] for item in proposal["items"]] == [
@@ -118,7 +120,31 @@ async def test_the_model_proposes_items_in_the_background(
         "hard",
         "soft",
         "soft",
+        "soft",
     ]
+
+
+async def test_only_the_required_qualifications_can_give_a_hard_requirement(
+    signed_in: SignedIn, runner: JobRunner
+) -> None:
+    """The fake proposes Python as hard, quoting the responsibilities."""
+    client = await signed_in()
+    vacancy_id = await submitted(client, runner)
+
+    items = await proposed_items(client, runner, vacancy_id)
+
+    python = items[4]
+    assert python["any_of"] == ["Python"]
+    assert python["kind"] == "soft"
+    assert python["source"] == "responsibilities"
+    assert python["note"] == (
+        "Proposed as hard, made soft: it is not in the required qualifications."
+    )
+    # The recruiter can still make it hard.
+    python["kind"] = "hard"
+    saved = (await save(client, vacancy_id, items)).json()["saved"]
+    assert saved["items"][4]["kind"] == "hard"
+    assert saved["items"][4]["note"] == ""
 
 
 async def test_a_reason_that_is_not_in_the_vacancy_is_marked(
@@ -130,8 +156,16 @@ async def test_a_reason_that_is_not_in_the_vacancy_is_marked(
     items = await proposed_items(client, runner, vacancy_id)
 
     # The fake's last reason was made up; the check in code noticed.
-    assert [item["grounded"] for item in items] == [True, True, True, False]
+    assert [item["grounded"] for item in items] == [True, True, True, False, True]
     assert items[3]["reason"] == "Agile ways of working are a plus"
+    assert items[3]["source"] == ""
+    assert [item["source"] for item in items] == [
+        "required_qualifications",
+        "required_qualifications",
+        "nice_to_haves",
+        "",
+        "responsibilities",
+    ]
 
 
 async def test_the_model_reads_the_vacancy_text_and_the_call_is_recorded(
@@ -281,7 +315,7 @@ async def test_the_edited_script_is_saved_with_the_vacancy_version(
     items[0]["any_of"] = ["Azure", "AWS", "GCP"]
     items[0]["min_years"] = 5
     items[1]["kind"] = "soft"
-    del items[3]
+    del items[3:]
     items.append({"any_of": ["Python"], "min_years": 2, "kind": "hard"})
 
     response = await save(client, vacancy_id, items)
@@ -405,7 +439,7 @@ async def test_editing_the_vacancy_marks_the_script_out_of_date(
     state = (await vacancy(client, vacancy_id))["script"]
     assert state["exists"] is True
     assert state["out_of_date"] is True
-    assert state["item_count"] == 4
+    assert state["item_count"] == 5
     # The old proposal no longer counts as a proposal for this text.
     assert state["proposal_ready"] is False
     both = await script(client, vacancy_id)

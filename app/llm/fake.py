@@ -147,6 +147,14 @@ def fake_script(request: LlmRequest) -> str:
                     # Not in the vacancy: the check in code will say so.
                     "reason": "Agile ways of working are a plus",
                 },
+                {
+                    "any_of": ["Python"],
+                    "min_years": 0,
+                    # Proposed as hard, but quoted from the responsibilities:
+                    # code makes it soft.
+                    "hard": True,
+                    "reason": "Improve the way the team works",
+                },
             ]
         }
     )

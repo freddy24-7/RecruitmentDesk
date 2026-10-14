@@ -141,6 +141,7 @@ The app will be online and calls a paid model, so nothing is reachable without a
 - A dialog opens with a **proposal from the model**, based on the vacancy text: a list of items. Each item has one or more **keywords** (for example "Microsoft Azure"), a **required number of years of experience** where it makes sense, and a flag: **hard** or **soft** requirement. Each item also carries a short reason: the sentence from the vacancy it is based on.
 - **Alternatives.** An item may hold up to four keywords that can replace each other: "AWS / Azure / GCP, 5 years, hard". A candidate meets the item with any one of them. Years are not added up across alternatives: one alternative must reach the years on its own.
 - **The reason is checked by code.** The model is asked to quote the vacancy. Code looks the quote up in the vacancy text. A reason that is not found is kept, and shown as not found in the vacancy.
+- **Only the required qualifications make a proposed item hard.** Code finds the section of the vacancy each quote comes from. An item the model proposed as hard, but that is quoted from the responsibilities, the role summary or the nice-to-haves (or not found at all), becomes soft, with a note that says so. The recruiter can still make any item hard.
 - The proposal is made by a background job, with a spinner. A proposal is not saved as the script. A waiting proposal for the current vacancy text is reused when the dialog is opened again.
 - The user can edit the keywords, change the years, flip hard or soft, remove items, and add new ones. Buttons: **Cancel** (nothing saved) and **Submit** (saves the script).
 - A saved script is linked to the version of the vacancy it was made from. If the vacancy is edited afterwards, the script is marked out of date. Submitting again saves it for the current text.
@@ -326,6 +327,8 @@ Decided (2026-10-13):
 
 - "Selection script" is a criteria set. Interview questions are a separate add-on (F8).
 - A script item may hold alternative keywords; any one of them meets it, and years are not added up across them (F5).
+- Only an item quoted from the required qualifications can be proposed as hard (F5, decided after the stage 6 comparison).
+- The assessment model is `mistral-small-2603`: the medium model gave the same lists at ten times the price (stage 6 comparison).
 - Frontend: React with TypeScript (Vite).
 - Access gate: one "use" means one new session.
 - Contact link shown when a code is used up: the developer's LinkedIn profile, set through an environment variable.
@@ -336,6 +339,4 @@ Decided (2026-10-13):
 Still open:
 
 - Whether to show different messages for an invalid and a used-up code (specified as different, as requested, with rate limiting to contain the leak).
-- Which Mistral models to use per step. Measured so far (stage 6): for assessment, `mistral-medium-2604` gave the same lists as `mistral-small-2603` at ten times the price; small is used for every step for now.
-- How to keep the selection script and the planted candidate pool from disagreeing (stage 6 finding).
 - Whether to include CSV export, and print or export of interview questions.

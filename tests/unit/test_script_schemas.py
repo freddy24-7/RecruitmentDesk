@@ -20,7 +20,6 @@ from app.script.service import (
     is_grounded,
     prompt_variables,
     to_script_items,
-    vacancy_text,
 )
 from app.vacancy.schemas import VacancySections
 
@@ -175,17 +174,52 @@ def test_a_reason_that_is_not_in_the_vacancy_is_not_grounded(reason: str) -> Non
 def test_proposed_items_become_script_items_with_the_reason_checked() -> None:
     proposal = ScriptProposal.model_validate_json(fake_script(request("script")))
 
-    items = to_script_items(proposal, vacancy_text(VACANCY))
+    items = to_script_items(proposal, VACANCY)
 
     assert [(i.any_of, i.min_years, i.kind.value) for i in items] == [
         (["Microsoft Azure", "AWS"], 3, "hard"),
         (["Terraform"], 2, "hard"),
         (["Kubernetes"], 0, "soft"),
         (["Scrum"], 0, "soft"),
+        # Proposed as hard, but not from the required qualifications.
+        (["Python"], 0, "soft"),
     ]
-    # Three reasons quote the vacancy; the fourth was made up.
-    assert [i.grounded for i in items] == [True, True, True, False]
+    # Four reasons quote the vacancy; one was made up.
+    assert [i.grounded for i in items] == [True, True, True, False, True]
+    assert [i.source for i in items] == [
+        "required_qualifications",
+        "required_qualifications",
+        "nice_to_haves",
+        "",
+        "responsibilities",
+    ]
+    assert [bool(i.note) for i in items] == [False, False, False, False, True]
     assert all(i.enabled for i in items)
+
+
+@pytest.mark.parametrize(
+    ("reason", "hard", "kind", "source"),
+    [
+        ("Experience with Microsoft Azure", True, "hard", "required_qualifications"),
+        # The model may also call a required qualification soft.
+        ("Experience with Microsoft Azure", False, "soft", "required_qualifications"),
+        ("Experience in a regulated sector", True, "soft", "nice_to_haves"),
+        ("Improve the way the team works", True, "soft", "responsibilities"),
+        ("you work on example projects", True, "soft", "role_summary"),
+        ("A requirement that is nowhere in the text", True, "soft", ""),
+    ],
+)
+def test_only_a_quote_from_the_required_qualifications_can_be_hard(
+    reason: str, hard: bool, kind: str, source: str
+) -> None:
+    proposal = ScriptProposal.model_validate(
+        {"items": [{"any_of": ["X"], "min_years": 0, "hard": hard, "reason": reason}]}
+    )
+
+    [item] = to_script_items(proposal, VACANCY)
+
+    assert (item.kind.value, item.source) == (kind, source)
+    assert bool(item.note) == (hard and kind == "soft")
 
 
 # --- The prompt --------------------------------------------------------------

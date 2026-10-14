@@ -143,6 +143,10 @@ export type ScriptItem = {
   reason: string
   /** Set by the server: is the reason really in the vacancy text? */
   grounded: boolean
+  /** Set by the server: the vacancy section the reason is quoted from, or ''. */
+  source: string
+  /** Set by the server when it changed the model's proposal, to say why. */
+  note: string
   enabled: boolean
 }
 

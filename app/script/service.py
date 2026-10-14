@@ -47,16 +47,32 @@ def _require_submitted(vacancy: Vacancy) -> None:
         )
 
 
+# The sections a reason may be quoted from, in the order they are searched.
+# Only the first can make a proposed item hard (decided with the author, after
+# the stage 6 comparison: requirements taken from the responsibilities were
+# proposed as hard, and no planted candidate could meet them).
+REQUIRED_SECTION = "required_qualifications"
+SECTIONS_SEARCHED = (
+    REQUIRED_SECTION,
+    "nice_to_haves",
+    "responsibilities",
+    "role_summary",
+    "title",
+)
+MADE_SOFT = "Proposed as hard, made soft: it is not in the required qualifications."
+
+
+def _section_texts(sections: VacancySections) -> dict[str, str]:
+    texts = {}
+    for name in SECTIONS_SEARCHED:
+        value = getattr(sections, name)
+        texts[name] = "\n".join(value) if isinstance(value, list) else value
+    return texts
+
+
 def vacancy_text(sections: VacancySections) -> str:
     """Everything a script item may be based on, as one text."""
-    parts = [
-        sections.title,
-        sections.role_summary,
-        *sections.responsibilities,
-        *sections.required_qualifications,
-        *sections.nice_to_haves,
-    ]
-    return "\n".join(parts)
+    return "\n".join(_section_texts(sections).values())
 
 
 def _normalised(text: str) -> str:
@@ -64,7 +80,7 @@ def _normalised(text: str) -> str:
 
 
 def is_grounded(reason: str, text: str) -> bool:
-    """True if `reason` is really a piece of the vacancy text.
+    """True if `reason` is really a piece of `text`.
 
     The model is asked to quote the vacancy. This is the check in code: the
     quote must be found there, ignoring case, spacing and a final full stop.
@@ -74,18 +90,38 @@ def is_grounded(reason: str, text: str) -> bool:
     return len(quote) >= 8 and quote in _normalised(text)
 
 
-def to_script_items(proposal: ScriptProposal, text: str) -> list[ScriptItem]:
-    """Turn the model's proposal into script items, with each reason checked."""
-    return [_to_item(proposed, text) for proposed in proposal.items]
+def find_source(reason: str, sections: VacancySections) -> str:
+    """The section of the vacancy the reason is quoted from, or "" if none."""
+    for name, text in _section_texts(sections).items():
+        if is_grounded(reason, text):
+            return name
+    return ""
 
 
-def _to_item(proposed: ProposedItem, text: str) -> ScriptItem:
+def to_script_items(
+    proposal: ScriptProposal, sections: VacancySections
+) -> list[ScriptItem]:
+    """Turn the model's proposal into script items, each checked against the vacancy.
+
+    Code decides two things here. Whether the reason is really a quote, and
+    from which section. And whether the item may be hard: only an item quoted
+    from the required qualifications can be. Anything else the model proposed
+    as hard becomes soft, with a note that says so.
+    """
+    return [_to_item(proposed, sections) for proposed in proposal.items]
+
+
+def _to_item(proposed: ProposedItem, sections: VacancySections) -> ScriptItem:
+    source = find_source(proposed.reason, sections)
+    hard = proposed.hard and source == REQUIRED_SECTION
     return ScriptItem(
         any_of=proposed.any_of,
         min_years=proposed.min_years,
-        kind=Kind.HARD if proposed.hard else Kind.SOFT,
+        kind=Kind.HARD if hard else Kind.SOFT,
         reason=proposed.reason,
-        grounded=is_grounded(proposed.reason, text),
+        grounded=bool(source),
+        source=source,
+        note=MADE_SOFT if proposed.hard and not hard else "",
     )
 
 
@@ -158,7 +194,7 @@ class ScriptProposer:
         except LlmError as error:
             raise JobFailed(error.kind) from error
 
-        items = to_script_items(proposal, vacancy_text(sections))
+        items = to_script_items(proposal, sections)
         job.result = {
             "vacancy_version": vacancy.version,
             "items": [item.model_dump(mode="json") for item in items],
@@ -213,11 +249,17 @@ async def save_script(
     decided here, by code: what the browser sends for it is ignored.
     """
     _require_submitted(vacancy)
-    text = vacancy_text(VacancySections.model_validate(vacancy.sections))
-    checked = [
-        item.model_copy(update={"grounded": is_grounded(item.reason, text)})
-        for item in items
-    ]
+    sections = VacancySections.model_validate(vacancy.sections)
+    checked = []
+    for item in items:
+        # What the browser sends for these is ignored: the server decides.
+        # The recruiter's own choice of hard or soft is kept as it is.
+        source = find_source(item.reason, sections)
+        checked.append(
+            item.model_copy(
+                update={"grounded": bool(source), "source": source, "note": ""}
+            )
+        )
     stored = [item.model_dump(mode="json") for item in checked]
     now = datetime.now(UTC)
     script = await read_script(session, vacancy.id)

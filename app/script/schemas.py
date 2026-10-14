@@ -51,6 +51,11 @@ class ScriptItem(BaseModel):
     reason: Annotated[str, Field(max_length=REASON_MAX)] = ""
     # Set by code, never by the model: is `reason` really in the vacancy text?
     grounded: bool = False
+    # Set by code: the section of the vacancy the reason was found in
+    # (for example "required_qualifications"), or "" if it was not found.
+    source: str = ""
+    # Set by code when it changed the model's proposal, to say why.
+    note: Annotated[str, Field(max_length=REASON_MAX)] = ""
     # A disabled item is kept in the script but ignored when screening.
     enabled: bool = True
 

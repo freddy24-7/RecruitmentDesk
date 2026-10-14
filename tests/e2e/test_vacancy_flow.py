@@ -237,7 +237,9 @@ def test_propose_edit_and_save_a_selection_script(page: Page, app_url: str) -> N
     )
     expect(first.get_by_label("Years")).to_have_value("3")
     expect(first.get_by_label("Requirement")).to_have_value("hard")
-    expect(first).to_contain_text("From the vacancy: “Experience with Microsoft Azure”")
+    expect(first).to_contain_text(
+        "From the required qualifications: “Experience with Microsoft Azure”"
+    )
     expect(dialog.get_by_role("group", name="Item 4")).to_contain_text(
         "not found in the vacancy text"
     )
@@ -263,6 +265,11 @@ def test_propose_edit_and_save_a_selection_script(page: Page, app_url: str) -> N
     dialog.get_by_role("group", name="Item 2").get_by_label(
         "Requirement"
     ).select_option("soft")
+    # Item 5 was proposed as hard but quoted from the responsibilities.
+    expect(dialog.get_by_role("group", name="Item 5")).to_contain_text(
+        "Proposed as hard, made soft: it is not in the required qualifications."
+    )
+    dialog.get_by_role("button", name="Remove item 5").click()
     dialog.get_by_role("button", name="Remove item 4").click()
     dialog.get_by_role("button", name="Add item").click()
     dialog.get_by_role("group", name="Item 4").get_by_label("Keywords").fill("Python")
@@ -316,7 +323,7 @@ def test_generate_the_lists_and_read_the_evidence(page: Page, app_url: str) -> N
     script = page.get_by_role("dialog", name="Selection script")
     expect(script.get_by_role("group", name="Item 1")).to_be_visible(timeout=15_000)
     script.get_by_role("button", name="Submit").click()
-    expect(page.get_by_text("Selection script ready (4 items).")).to_be_visible()
+    expect(page.get_by_text("Selection script ready (5 items).")).to_be_visible()
 
     # Now the lists can be made. One run produces both.
     expect(long_list).not_to_have_attribute("aria-disabled", "true")
