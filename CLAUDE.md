@@ -118,12 +118,8 @@ uv run python scripts/manage_codes.py status  # uses per code label (never print
 # manage_codes.py create|extend|disable also exist. Run create only on the developer's machine, never in CI.
 uv run alembic revision --autogenerate -m "..."   # new migration after a model change; review it by hand
 npm --prefix web run lint && npm --prefix web run build && npm --prefix web test   # frontend: ESLint, types and build, Vitest
-```
-
-Not created yet (add when the stage arrives):
-
-```bash
-uv run python scripts/evaluate_lists.py --services fake    # evaluation code with the fake model (stage 8)
+uv run python scripts/evaluate_lists.py --services fake   # evaluation with the fake model: checks the evaluation code. Own database (<name>_eval)
+uv run python scripts/evaluate_lists.py --services mistral  # real model, costs money: states the calls and asks first. Only on request
 ```
 
 ## Working with the author

@@ -1,6 +1,7 @@
 """What the user reads when a job did not finish, per error kind."""
 
 from app.jobs.models import ERROR_INTERNAL, ERROR_INTERRUPTED
+from app.limits.spend import SPEND_CAP_MESSAGE
 from app.llm import base as llm
 
 MESSAGES: dict[str, str] = {
@@ -13,6 +14,7 @@ MESSAGES: dict[str, str] = {
     llm.REJECTED: "The model did not accept the request. Please try again.",
     llm.NOT_CONFIGURED: "Generation is not available: the model is not set up.",
     ERROR_INTERRUPTED: "This job was interrupted by a restart. You can run it again.",
+    llm.SPEND_CAP: SPEND_CAP_MESSAGE,
     ERROR_INTERNAL: "Something went wrong. Please try again.",
 }
 

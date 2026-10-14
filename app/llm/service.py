@@ -9,13 +9,15 @@ import time
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
+from decimal import Decimal
 
 import structlog
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config import Settings
-from app.llm.base import INVALID_OUTPUT, LlmClient, LlmError, LlmRequest
+from app.limits.spend import cap_reached
+from app.llm.base import INVALID_OUTPUT, SPEND_CAP, LlmClient, LlmError, LlmRequest
 from app.llm.fake import FakeLlm, UnconfiguredLlm
 from app.llm.pricing import FAKE_MODEL, estimate_cost
 from app.llm.prompts import Prompt
@@ -42,10 +44,14 @@ def build_client(settings: Settings) -> LlmClient:
 
 class LlmService:
     def __init__(
-        self, client: LlmClient, sessionmaker: async_sessionmaker[AsyncSession]
+        self,
+        client: LlmClient,
+        sessionmaker: async_sessionmaker[AsyncSession],
+        daily_spend_cap: Decimal | None = None,
     ) -> None:
         self.client = client
         self._sessionmaker = sessionmaker
+        self.daily_spend_cap = daily_spend_cap
 
     def model_name(self, configured: str) -> str:
         """The fake is recorded as `fake`, so its usage is never mistaken for spend."""
@@ -83,6 +89,12 @@ class LlmService:
         )
 
         for attempt in range(1, MAX_ATTEMPTS + 1):
+            # Checked before every single call, so a long job also stops when
+            # the day's budget runs out half-way.
+            async with self._sessionmaker() as session:
+                if await cap_reached(session, self.daily_spend_cap):
+                    log.warning("llm.spend_cap_reached", call_type=call_type)
+                    raise LlmError(SPEND_CAP)
             started = time.monotonic()
             response = await self.client.complete(request)
             latency_ms = int((time.monotonic() - started) * 1000)

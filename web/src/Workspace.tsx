@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { startScreening } from './api.ts'
+import { resetDemo, startScreening } from './api.ts'
+import ConfirmDialog from './ConfirmDialog.tsx'
 import type { Vacancy } from './api.ts'
 import CandidatesPage from './CandidatesPage.tsx'
 import CandidateView from './CandidateView.tsx'
@@ -81,6 +82,14 @@ function Workspace() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const vacancies = useVacancies()
   const queryClient = useQueryClient()
+  const [confirmingReset, setConfirmingReset] = useState(false)
+  const reset = useMutation({
+    mutationFn: resetDemo,
+    onSuccess: () => {
+      setView({ name: 'home' })
+      return queryClient.invalidateQueries({ queryKey: VACANCIES_KEY })
+    },
+  })
   // One request for a screening run, shared by the vacancy and the list pages,
   // so a refusal is shown wherever the user ends up.
   const screening = useMutation({
@@ -135,6 +144,14 @@ function Workspace() {
             onClick={() => setView({ name: 'submitted' })}
           >
             Submitted vacancies
+          </button>
+          <button
+            type="button"
+            className="danger"
+            disabled={reset.isPending}
+            onClick={() => setConfirmingReset(true)}
+          >
+            Reset demo
           </button>
         </nav>
       </header>
@@ -295,6 +312,29 @@ function Workspace() {
           />
         )}
       </main>
+
+      {reset.isError && (
+        <p role="alert" className="problem">
+          {reset.error.message}
+        </p>
+      )}
+      <ConfirmDialog
+        open={confirmingReset}
+        onOpenChange={setConfirmingReset}
+        title="Reset the demo?"
+        confirmLabel="Delete everything"
+        cancelLabel="Keep my work"
+        onConfirm={() => reset.mutate()}
+      >
+        <p>
+          This permanently deletes every vacancy in your workspace, with its
+          candidates, selection script, lists and interview questions. It
+          cannot be undone.
+        </p>
+        <p>
+          You stay signed in. The limits of this demo workspace are not reset.
+        </p>
+      </ConfirmDialog>
 
       <GenerateVacancyDialog
         open={dialogOpen}

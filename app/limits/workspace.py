@@ -9,8 +9,9 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import Settings
+from app.config import Settings, get_settings
 from app.jobs.models import ACTIVE, Job
+from app.limits.spend import SPEND_CAP_MESSAGE, cap_reached
 
 VACANCY_GENERATION = "vacancy_generation"
 CANDIDATE_GENERATION = "candidate_generation"
@@ -29,7 +30,12 @@ class LimitReached(Exception):
 
 
 async def check_no_job_running(session: AsyncSession, workspace_id: uuid.UUID) -> None:
-    """One job at a time per workspace."""
+    """Before any job starts: within today's budget, and one job at a time.
+
+    Every start and every retry of a job passes here.
+    """
+    if await cap_reached(session, get_settings().daily_spend_cap_usd):
+        raise LimitReached("spend_cap_reached", SPEND_CAP_MESSAGE)
     active = await session.scalar(
         select(func.count())
         .select_from(Job)

@@ -65,6 +65,8 @@ select = ["E", "F", "I", "B", "UP", "SIM", "ASYNC", "S"]
 # Table and column names come from the database catalogue, not from user input.
 "tests/integration/test_vacancy_review.py" = ["S101", "S608"]
 "migrations/**" = ["E501"]
+# The report is long lines of Markdown text on purpose.
+"app/evaluation/run.py" = ["E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app", "scripts", "tests"]

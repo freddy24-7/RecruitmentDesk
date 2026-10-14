@@ -326,7 +326,7 @@ class Screener:
         )
         await session.commit()
 
-        variables = self._vacancy_variables(vacancy, items)
+        variables = self.vacancy_variables(vacancy, items)
         slots = asyncio.Semaphore(self._settings.cv_concurrency)
         stop = asyncio.Event()
 
@@ -431,7 +431,7 @@ class Screener:
                 )
             )
 
-    def _vacancy_variables(
+    def vacancy_variables(
         self, vacancy: Vacancy, items: list[ScriptItem]
     ) -> dict[str, str]:
         sections = VacancySections.model_validate(vacancy.sections)
@@ -527,7 +527,13 @@ class Screener:
     ) -> None:
         """Combine the two stages, cut the lists, and record how it was done."""
         rows = (
-            await session.scalars(select(Assessment).where(Assessment.run_id == job.id))
+            await session.scalars(
+                select(Assessment)
+                .where(Assessment.run_id == job.id)
+                # A fixed order, so equal scores always break the same way:
+                # the same input gives the same lists.
+                .order_by(Assessment.deterministic_rank)
+            )
         ).all()
         weight = self._settings.screening_weight_deterministic
         lists = build_lists(

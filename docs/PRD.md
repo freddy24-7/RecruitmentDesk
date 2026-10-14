@@ -338,6 +338,9 @@ Decided (2026-10-13):
 - Language of the UI and content: English only.
 - Stages: the ten stages in section 13 (0 to 9).
 - List sizes: round half up, with integer arithmetic (F6).
+- Daily spend cap: $2.00 by default, set through `DAILY_SPEND_CAP_USD`, from the estimated cost in the usage records (stage 8).
+- Equal final scores are broken by the ranking computed by code, so the same input always gives the same lists (stage 8).
+- "Reset demo" deletes the workspace's vacancies but keeps its session and its limits (stage 8).
 
 Still open:
 

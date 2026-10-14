@@ -294,3 +294,35 @@ test('flagged wording is shown for review', async () => {
   const flags = await screen.findByRole('region', { name: 'Wording to review' })
   expect(flags).toHaveTextContent('“young” in Required qualifications (age)')
 })
+
+test('reset demo states what is deleted and needs confirmation', async () => {
+  const { calls } = backend([vacancy()])
+  mockApi({
+    'GET /api/session': () => json(200, SESSION),
+    'GET /api/vacancies': () =>
+      json(200, calls.some((c) => c.route === 'POST /api/workspace/reset') ? [] : [vacancy()]),
+    'POST /api/workspace/reset': () => {
+      calls.push({ route: 'POST /api/workspace/reset', body: null })
+      return new Response(null, { status: 204 })
+    },
+  })
+  const user = userEvent.setup()
+  render(<App />)
+  await screen.findByRole('button', { name: 'Your vacancy is ready to be viewed' })
+
+  await user.click(screen.getByRole('button', { name: 'Reset demo' }))
+  const dialog = await screen.findByRole('alertdialog', { name: 'Reset the demo?' })
+  expect(dialog).toHaveTextContent(
+    'This permanently deletes every vacancy in your workspace, with its candidates, selection script, lists and interview questions.',
+  )
+  expect(dialog).toHaveTextContent('The limits of this demo workspace are not reset.')
+
+  await user.click(within(dialog).getByRole('button', { name: 'Keep my work' }))
+  expect(calls.some((c) => c.route === 'POST /api/workspace/reset')).toBe(false)
+
+  await user.click(screen.getByRole('button', { name: 'Reset demo' }))
+  await user.click(await screen.findByRole('button', { name: 'Delete everything' }))
+
+  expect(await screen.findByText(/Nothing here yet/)).toBeInTheDocument()
+  expect(calls.some((c) => c.route === 'POST /api/workspace/reset')).toBe(true)
+})

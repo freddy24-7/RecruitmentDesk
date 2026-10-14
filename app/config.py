@@ -1,5 +1,6 @@
 """Application settings, read from the environment (and `.env` in development)."""
 
+from decimal import Decimal
 from functools import lru_cache
 from typing import Literal
 
@@ -83,6 +84,17 @@ class Settings(BaseSettings):
     # of the model's fit score (PRD F6).
     screening_weight_deterministic: float = 0.5
 
+    # The most all workspaces together may spend on model calls per day (UTC),
+    # in US dollars, from the usage records. Empty means no cap.
+    daily_spend_cap_usd: Decimal | None = Decimal("2.00")
+
+    # Workspaces idle this long are deleted with all their data; the clean-up
+    # runs this often.
+    cleanup_interval_minutes: int = 60
+
+    # Requests with a larger body are refused.
+    max_request_bytes: int = 256_000
+
     # Blueprint sampling is seeded, so a pool can be reproduced.
     blueprint_seed: int = 20261013
 
@@ -108,6 +120,11 @@ class Settings(BaseSettings):
     @classmethod
     def empty_means_none(cls, value: str | None) -> str | None:
         return (value or "").strip() or None
+
+    @field_validator("daily_spend_cap_usd", mode="before")
+    @classmethod
+    def empty_cap_means_none(cls, value: object) -> object:
+        return None if isinstance(value, str) and not value.strip() else value
 
     @field_validator("mistral_api_key")
     @classmethod

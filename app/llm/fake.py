@@ -231,6 +231,7 @@ DEFAULT_RESPONDERS: dict[str, Responder] = {
     "cv": fake_cv,
     "script": fake_script,
     "assessment": fake_assessment,
+    "evaluation_name_swap": fake_assessment,
     "interview": fake_interview,
 }
 

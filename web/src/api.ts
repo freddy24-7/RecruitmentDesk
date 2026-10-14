@@ -450,3 +450,11 @@ export function resetQuestions(vacancyId: string, setId: string): Promise<Questi
     `/api/vacancies/${vacancyId}/interview/${setId}/reset`,
   )
 }
+
+/**
+ * "Reset demo": delete every vacancy of this workspace with all related data.
+ * Send only after the user confirmed. The session and the limits stay.
+ */
+export async function resetDemo(): Promise<void> {
+  await request<unknown>('POST', '/api/workspace/reset', { confirm: true })
+}

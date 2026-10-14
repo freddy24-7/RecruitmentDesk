@@ -1,6 +1,8 @@
 """One error shape for the whole API: `{"error": kind, "message": text}`."""
 
-from fastapi import FastAPI, Request
+from collections.abc import Awaitable, Callable
+
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 
 
@@ -34,3 +36,24 @@ async def _handle_api_error(_request: Request, error: Exception) -> JSONResponse
 
 def add_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(ApiError, _handle_api_error)
+
+
+def add_body_limit(app: FastAPI, max_bytes: int) -> None:
+    """Refuse requests whose body is larger than `max_bytes` (PRD section 11).
+
+    The size is taken from the Content-Length header. A request without one
+    is read in full by FastAPI only when a route needs the body, and every
+    route that does validates its input with limits on length.
+    """
+
+    @app.middleware("http")
+    async def limit(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        length = request.headers.get("content-length")
+        if length is not None and (not length.isdigit() or int(length) > max_bytes):
+            return JSONResponse(
+                status_code=413,
+                content={"error": "too_large", "message": "This request is too large."},
+            )
+        return await call_next(request)

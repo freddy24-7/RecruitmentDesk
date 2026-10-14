@@ -15,6 +15,8 @@ UNAVAILABLE = "llm_unavailable"
 TIMEOUT = "llm_timeout"
 REJECTED = "llm_rejected"
 NOT_CONFIGURED = "llm_not_configured"
+# Not from the provider: the daily spend cap of the demo was reached.
+SPEND_CAP = "spend_cap_reached"
 
 
 class LlmError(Exception):

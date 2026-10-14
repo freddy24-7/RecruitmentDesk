@@ -17,6 +17,10 @@ htmlcov/
 node_modules/
 web/dist/
 
+# Evaluation reports made with the fake model check the code, not the model.
+# Reports of real runs are kept.
+reports/*-fake.*
+
 # Playwright
 test-results/
 playwright-report/

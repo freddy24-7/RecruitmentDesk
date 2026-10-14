@@ -2,17 +2,20 @@
 
 "Cancel vacancy" deletes the vacancy and everything that belongs to it.
 Replacing candidates deletes the old ones, and a new screening run deletes
-the old lists, and new interview questions the old ones. No other module
-deletes rows; a
+the old lists, and new interview questions the old ones. "Reset demo" and the
+clean-up of idle workspaces delete whole workspaces. No other module deletes
+rows; a
 test checks that. Every function here needs an explicit confirmation, which
 the UI only sends after its confirmation dialog.
 """
 
 import uuid
+from datetime import datetime, timedelta
 
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.access.models import FailedAttempt, Workspace
 from app.candidates.models import Candidate
 from app.interview.models import QuestionSet
 from app.screening.models import Assessment
@@ -76,3 +79,39 @@ async def delete_question_sets(
     await session.execute(
         delete(QuestionSet).where(QuestionSet.vacancy_id == vacancy_id)
     )
+
+
+async def delete_workspace_content(
+    session: AsyncSession, workspace_id: uuid.UUID, *, confirmed: bool
+) -> None:
+    """ "Reset demo": delete every vacancy of a workspace, with all related data.
+
+    The workspace and its session stay, and so do its job rows and usage
+    records: the limits are not reset. The caller commits.
+    """
+    if not confirmed:
+        raise ConfirmationRequired
+    await session.execute(delete(Vacancy).where(Vacancy.workspace_id == workspace_id))
+
+
+async def delete_idle_workspaces(
+    session: AsyncSession, now: datetime, idle: timedelta
+) -> int:
+    """Delete workspaces nobody used for `idle`, with all their data (PRD section 11).
+
+    Their sessions end with them. Usage records stay, without the link: the
+    cost was made. Failed code attempts older than a day go too: the attempt
+    limits look back an hour at most. Returns how many workspaces were
+    deleted. The caller commits.
+    """
+    deleted = await session.execute(
+        delete(Workspace)
+        .where(Workspace.last_seen_at < now - idle)
+        .returning(Workspace.id)
+    )
+    await session.execute(
+        delete(FailedAttempt).where(
+            FailedAttempt.attempted_at < now - timedelta(days=1)
+        )
+    )
+    return len(deleted.all())
