@@ -329,6 +329,7 @@ Decided (2026-10-13):
 - A script item may hold alternative keywords; any one of them meets it, and years are not added up across them (F5).
 - Only an item quoted from the required qualifications can be proposed as hard (F5, decided after the stage 6 comparison).
 - The assessment model is `mistral-small-2603`: the medium model gave the same lists at ten times the price (stage 6 comparison).
+- The two calls made once per vacancy, the vacancy profile and the script proposal, use `mistral-medium-2604`: with the small model they read the vacancy differently, and the script split alternatives (stage 6).
 - Frontend: React with TypeScript (Vite).
 - Access gate: one "use" means one new session.
 - Contact link shown when a code is used up: the developer's LinkedIn profile, set through an environment variable.

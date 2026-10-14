@@ -20,7 +20,7 @@ Built in ten stages (PRD section 13). Done so far:
 
 ### What has run against the real Mistral API
 
-On 2026-10-13 and 14, about 175 calls in total:
+On 2026-10-13 and 14, about 240 calls in total:
 
 - six calls through `uv run pytest -m mistral tests/real -s` (one vacancy, one vacancy profile, four CVs);
 - two runs of one vacancy and 20 candidates through the app's job pipeline. The first exposed three design faults and produced 16 of 20 candidates. After the fixes, the second produced 20 of 20, every CV usable on the first answer, in 19.5 seconds, for an estimated $0.0075;
@@ -28,7 +28,7 @@ On 2026-10-13 and 14, about 175 calls in total:
 
 - the screening: one pool of 20 assessed by `mistral-small-2603` and by `mistral-medium-2604` (the same lists, at ten times the price for medium), and a second pool after the prompts were revised. Both short lists held only planted strong matches. Between 25% and 37% of the model's claims about keywords and years did not hold and were removed or corrected by the evidence check.
 
-Total estimated spend: about 14 cents. Every automated test, including the browser tests, uses the fake model. Details and the measured figures are in [cards/04-candidates.md](cards/04-candidates.md), [cards/05-selection-script.md](cards/05-selection-script.md) and [cards/06-long-list-and-short-list.md](cards/06-long-list-and-short-list.md).
+Total estimated spend: about 21 cents. Every automated test, including the browser tests, uses the fake model. Details and the measured figures are in [cards/04-candidates.md](cards/04-candidates.md), [cards/05-selection-script.md](cards/05-selection-script.md) and [cards/06-long-list-and-short-list.md](cards/06-long-list-and-short-list.md).
 
 ## Run it locally
 

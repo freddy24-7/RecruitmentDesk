@@ -45,8 +45,13 @@ class Settings(BaseSettings):
     mistral_api_key: SecretStr | None = None
     # Exact, pinned model versions. No `-latest` aliases (CLAUDE.md).
     mistral_model_vacancy: str = "mistral-small-2603"
+    # The two calls made once per vacancy, where quality matters most and the
+    # stronger model costs well under a cent (decided after the stage 6 runs):
+    # reading the vacancy's requirements to plant candidates, and proposing the
+    # selection script.
+    mistral_model_profile: str = "mistral-medium-2604"
     mistral_model_cv: str = "mistral-small-2603"
-    mistral_model_script: str = "mistral-small-2603"
+    mistral_model_script: str = "mistral-medium-2604"
     # The model that assesses candidates. To be chosen after a comparison.
     mistral_model_assessment: str = "mistral-small-2603"
     llm_timeout_seconds: int = 60

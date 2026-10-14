@@ -52,6 +52,7 @@ def create_app(llm_client: LlmClient | None = None) -> FastAPI:
     configure_logging()
     settings = get_settings()
     require_known_price(settings.mistral_model_vacancy)
+    require_known_price(settings.mistral_model_profile)
     require_known_price(settings.mistral_model_cv)
     require_known_price(settings.mistral_model_script)
     require_known_price(settings.mistral_model_assessment)

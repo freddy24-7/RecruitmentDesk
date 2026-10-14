@@ -267,7 +267,7 @@ class CandidateGenerator:
                 pass
         profile = await self._llm.generate(
             call_type=PROFILE_CALL,
-            model=self._settings.mistral_model_vacancy,
+            model=self._settings.mistral_model_profile,
             prompt=load_prompt(PROFILE_PROMPT),
             variables=profile_variables(vacancy),
             schema=VacancyProfile,
