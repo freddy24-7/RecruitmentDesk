@@ -114,8 +114,14 @@ def check_assessment(
     script_keywords: list[str],
     as_of: date,
     total_years: float,
+    covered: dict[str, str] | None = None,
 ) -> CheckedAssessment:
-    """Check every claim against the blind CV. `cv_text` is that CV as text."""
+    """Check every claim against the blind CV. `cv_text` is that CV as text.
+
+    `covered` maps a keyword (lower case) to the alternative that already met
+    its script item. "No Azure" is no concern when AWS meets "AWS or Azure".
+    """
+    covered = covered or {}
     flags: list[Flag] = []
     made = supported = 0
 
@@ -172,8 +178,18 @@ def check_assessment(
     for point in assessment.concerns:
         present = [k for k in point.keywords if mentions(cv_text, k)]
         wrong = wrong_years(point.text)
+        # Seen with the real model: a concern about a missing alternative.
+        met_otherwise = bool(point.keywords) and all(
+            k.lower() in covered for k in point.keywords
+        )
         if present:
             flags.append(Flag(CONCERN_CONTRADICTED, ", ".join(present)))
+        elif met_otherwise:
+            detail = "; ".join(
+                f"{k}: {covered[k.lower()]} meets the same requirement"
+                for k in point.keywords
+            )
+            flags.append(Flag(CONCERN_CONTRADICTED, detail))
         elif wrong:
             flags.append(Flag(CONCERN_CONTRADICTED, years_detail(wrong)))
         else:

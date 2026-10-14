@@ -545,3 +545,48 @@ def test_years_written_as_words_are_checked_too() -> None:
         (STRENGTH_UNSUPPORTED, "12 years"),
         (SENTENCE_UNSUPPORTED, "15 years"),
     ]
+
+
+def test_a_concern_about_a_missing_alternative_is_removed() -> None:
+    """Seen with the real model: "lacks Azure" for a candidate who meets
+    "AWS or Azure" with AWS. The concern was true of the CV, but not of the
+    vacancy, and it reached the interview questions."""
+    checked = check_assessment(
+        assessment(
+            concerns=[
+                {"text": "Lacks Azure, a required platform.", "keywords": ["AWS"]},
+                {"text": "No container orchestration.", "keywords": ["Kubernetes"]},
+            ]
+        ),
+        CV,
+        render_text(CV),
+        KEYWORDS,
+        AS_OF,
+        total_years=6.8,
+        covered={"aws": "Azure", "azure": "Azure"},
+    )
+
+    assert checked.concerns == ["No container orchestration."]
+    assert [(f.kind, f.detail) for f in checked.flags] == [
+        (CONCERN_CONTRADICTED, "AWS: Azure meets the same requirement")
+    ]
+
+
+def test_covered_alternatives_come_from_met_items_only() -> None:
+    from app.screening.service import covered_alternatives
+
+    items = [
+        item("AWS", "Azure", "GCP", years=5),
+        item("Terraform", "Pulumi"),
+    ]
+    requirements = [
+        {"item": 0, "met": True, "keyword": "Azure"},
+        # Found, but not for long enough: nothing is covered.
+        {"item": 1, "met": False, "keyword": "Terraform"},
+    ]
+
+    assert covered_alternatives(requirements, items) == {
+        "aws": "Azure",
+        "azure": "Azure",
+        "gcp": "Azure",
+    }

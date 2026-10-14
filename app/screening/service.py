@@ -242,6 +242,18 @@ def _missed_flag(result: ItemResult, items: list[ScriptItem]) -> dict[str, str]:
     return {"kind": MISSED_HARD, "detail": detail}
 
 
+def covered_alternatives(
+    requirements: list[dict[str, Any]], items: list[ScriptItem]
+) -> dict[str, str]:
+    """For each met script item: its alternatives, mapped to the one that met it."""
+    covered = {}
+    for result in requirements:
+        if result["met"] and result["keyword"]:
+            for alternative in items[result["item"]].any_of:
+                covered[alternative.lower()] = result["keyword"]
+    return covered
+
+
 class Screener:
     """The handler for `screening` jobs.
 
@@ -315,7 +327,6 @@ class Screener:
         await session.commit()
 
         variables = self._vacancy_variables(vacancy, items)
-        keywords = script_keywords(items)
         slots = asyncio.Semaphore(self._settings.cv_concurrency)
         stop = asyncio.Event()
 
@@ -325,7 +336,12 @@ class Screener:
                     return None
                 try:
                     await self._assess(
-                        assessment_id, variables, keywords, as_of, workspace_id, job_id
+                        assessment_id,
+                        variables,
+                        items,
+                        as_of,
+                        workspace_id,
+                        job_id,
                     )
                 except LlmError as error:
                     if error.kind != INVALID_OUTPUT:
@@ -435,7 +451,7 @@ class Screener:
         self,
         assessment_id: uuid.UUID,
         vacancy_variables: dict[str, str],
-        keywords: list[str],
+        items: list[ScriptItem],
         as_of: date,
         workspace_id: uuid.UUID,
         job_id: uuid.UUID,
@@ -480,9 +496,10 @@ class Screener:
                 answer,
                 cv,
                 cv_text,
-                keywords,
+                script_keywords(items),
                 as_of,
                 total_years=row.evidence["total_years"],
+                covered=covered_alternatives(row.requirements, items),
             )
             row.llm_score = checked.fit_score
             row.strengths = checked.strengths

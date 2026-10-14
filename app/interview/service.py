@@ -46,8 +46,8 @@ from app.vacancy.schemas import VacancySections
 
 log = structlog.get_logger()
 
-CORE_PROMPT = "interview_core_v1"
-FOLLOW_UP_PROMPT = "interview_follow_up_v1"
+CORE_PROMPT = "interview_core_v2"
+FOLLOW_UP_PROMPT = "interview_follow_up_v2"
 CALL = "interview"
 TEMPERATURE = 0.4
 MAX_TOKENS = 1500

@@ -17,11 +17,11 @@ Built in ten stages (PRD section 13). Done so far:
 - **Stage 4, candidates:** 1 to 100 fictional candidates per vacancy. Code samples who each candidate is (with a known match category, as ground truth) and builds their dated job history; the model writes the CV prose. A searchable, sortable candidate page with a CV view. Tested with a fake model only.
 - **Stage 5, selection script:** the model proposes screening criteria from the vacancy text: keywords (with alternatives), years, hard or soft, and the sentence each one is based on. Code checks that sentence is really in the vacancy. The recruiter edits and submits. Hard and soft requirements are applied in one function.
 - **Stage 6, long list and short list:** one screening run produces both. Code finds each script keyword in the anonymised CV, computes years from the dated jobs and applies hard and soft requirements. The model assesses the strongest candidates. Code checks its claims against the CV and removes what is not supported. Names and contact details are joined back only for display. Compared on real pools with the small and the medium model.
-- **Stage 7, interview questions:** from the short list, core questions for every candidate and follow-ups per candidate. Each question names the script item, strength or concern it is based on, and code checks that link. Questions that may touch a protected attribute are flagged. Not yet run against the real model.
+- **Stage 7, interview questions:** from the short list, core questions for every candidate and follow-ups per candidate. Each question names the script item, strength or concern it is based on, and code checks that link. Questions that may touch a protected attribute are flagged. Checked on two real pools.
 
 ### What has run against the real Mistral API
 
-On 2026-10-13 and 14, about 240 calls in total:
+On 2026-10-13 and 14, about 320 calls in total:
 
 - six calls through `uv run pytest -m mistral tests/real -s` (one vacancy, one vacancy profile, four CVs);
 - two runs of one vacancy and 20 candidates through the app's job pipeline. The first exposed three design faults and produced 16 of 20 candidates. After the fixes, the second produced 20 of 20, every CV usable on the first answer, in 19.5 seconds, for an estimated $0.0075;
@@ -29,7 +29,9 @@ On 2026-10-13 and 14, about 240 calls in total:
 
 - the screening: one pool of 20 assessed by `mistral-small-2603` and by `mistral-medium-2604` (the same lists, at ten times the price for medium), and a second pool after the prompts were revised. Both short lists held only planted strong matches. Between 25% and 37% of the model's claims about keywords and years did not hold and were removed or corrected by the evidence check.
 
-Total estimated spend: about 21 cents. Every automated test, including the browser tests, uses the fake model. Details and the measured figures are in [cards/04-candidates.md](cards/04-candidates.md), [cards/05-selection-script.md](cards/05-selection-script.md) and [cards/06-long-list-and-short-list.md](cards/06-long-list-and-short-list.md).
+- interview questions on two more fresh pools: every question usable, none dropped, none flagged; a false concern about a missing alternative was found and fixed in the evidence check.
+
+Total estimated spend: about 26 cents. Every automated test, including the browser tests, uses the fake model. Details and the measured figures are in [cards/04-candidates.md](cards/04-candidates.md), [cards/05-selection-script.md](cards/05-selection-script.md), [cards/06-long-list-and-short-list.md](cards/06-long-list-and-short-list.md) and [cards/07-interview-questions.md](cards/07-interview-questions.md).
 
 ## Run it locally
 

@@ -34,10 +34,18 @@ Date: 2026-10-14
 - **Tests that break the system on purpose:** a model that invents a source reference (the question is dropped and reported), a model that asks "How old are you, and do you have children?" (flagged with both terms), and CVs whose owners' names and contact details must not reach the model.
 - **A run that fails part-way** is retried and only makes the sets still missing.
 - **A one-off stall** of the frontend test runner made the first run time out; it passed when run again, with no code change.
-- **Not yet run against the real model.**
+- **Real model, first run (2026-10-14, `mistral-small-2603`, on a fresh real pool):** three calls, all usable on the first answer, 8 seconds, $0.0013 for the questions. No question was dropped for a bad reference and none was flagged. The core questions were open, about real situations, one per script item. The follow-ups verified strengths with details from the candidate's own CV ("…reducing deployment times by 45%. What was the most complex pipeline you built?").
+- **What that run found, and what was changed:**
+  - **A false concern reached the questions.** The script asked for "AWS or Azure"; the candidate had AWS. The assessment still listed "lacks direct experience with Azure, which is a required platform", the evidence check kept it (Azure was indeed not in the CV), and the follow-up told the candidate "The role requires experience with Azure". Fixed in the stage 6 evidence check: a concern whose keywords are all alternatives of a requirement the candidate already meets is removed and flagged ("Azure: AWS meets the same requirement"). This also cleans the lists.
+  - **Reference codes in the text** ("…as stated in P1"). Both prompts are now version 2 and ask not to mention references.
+- **Second real run with the fixes, on another fresh pool:** the evidence check removed 8 concerns about a missing alternative across the 12 assessed candidates, so the short-listed candidates had no false concerns left. The core questions carried no reference codes in two runs. The follow-up purposes still did now and then ("…tools mentioned in P1"): the small model does not always follow that instruction.
+- Estimated real spend for this stage: about 3 cents (two pools with screening, three runs of questions).
 
 ## Still open
 
-- **The quality of real questions is unknown**: whether they are specific, open and fair, and how often a real model invents a reference or asks something it should not.
+- **A reference can exist and still be the wrong one.** In the first real run a question about Grafana dashboards cited a concern about missing monitoring tools. Code checks that a reference was offered, not that it fits the question.
+- **Reference codes still appear now and then in follow-up purposes.** Removing them by code was considered and left out: a code such as "S3" can also be a real keyword (the AWS storage service).
+- **Not every concern gets a question.** The prompt asks for 3 to 5 follow-ups, not one per point.
+- **Two runs on cloud engineer vacancies are all the real evidence.** Other sectors, and how often a real model asks something it should not, are untested.
 - **The protected-attribute check is a short list of terms.** A question that is discriminatory in other words passes it.
 - **No print or export.**
