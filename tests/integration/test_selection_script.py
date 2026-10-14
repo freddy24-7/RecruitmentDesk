@@ -458,27 +458,23 @@ async def test_lists_say_exactly_which_prerequisite_is_missing(
     client = await signed_in()
     vacancy_id = await submitted(client, runner)
 
-    async def reason() -> str:
+    async def lists() -> tuple[bool, str | None]:
         actions = {a["key"]: a for a in (await vacancy(client, vacancy_id))["actions"]}
-        assert actions["generate_long_list"]["enabled"] is False
-        assert (
-            actions["generate_long_list"]["reason"]
-            == actions["generate_short_list"]["reason"]
-        )
-        found: str = actions["generate_long_list"]["reason"]
-        return found
+        long, short = actions["generate_long_list"], actions["generate_short_list"]
+        assert (long["enabled"], long["reason"]) == (short["enabled"], short["reason"])
+        return long["enabled"], long["reason"]
 
-    assert await reason() == "Generate candidates and a selection script first."
+    assert await lists() == (False, "Generate candidates and a selection script first.")
 
     await save(
         client, vacancy_id, [{"any_of": ["AWS"], "min_years": 0, "kind": "hard"}]
     )
-    assert await reason() == "Generate candidates first."
+    assert await lists() == (False, "Generate candidates first.")
 
     await client.post(f"/api/vacancies/{vacancy_id}/candidates", json={"count": 2})
     await runner.wait_idle()
-    # Both prerequisites exist now; the lists themselves are stage 6.
-    assert await reason() == "Not available yet in this version of the demo."
+    # Both prerequisites exist and are current: the lists can be made.
+    assert await lists() == (True, None)
 
 
 # --- Other workspaces, deletion, logs ----------------------------------------

@@ -460,3 +460,35 @@ button.link {
 .script-row .years {
   width: 5rem;
 }
+
+/* Lists */
+
+.notice {
+  margin: 0.5rem 0 1rem;
+  padding: 0.5rem 0.9rem;
+  border-left: 4px solid var(--accent);
+  background: var(--surface);
+  font-weight: 600;
+}
+
+.tabs {
+  margin-bottom: 1rem;
+}
+
+ol.cards {
+  padding: 0;
+}
+
+.card h4 {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.95rem;
+}
+
+.flag-list {
+  margin: 0.75rem 0;
+  padding: 0.5rem 0.9rem 0.5rem 1.8rem;
+  border: 1px solid var(--warn-border);
+  border-radius: 0.5rem;
+  background: var(--warn-bg);
+  font-size: 0.9rem;
+}

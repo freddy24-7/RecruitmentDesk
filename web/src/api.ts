@@ -81,9 +81,17 @@ export type Vacancy = {
     item_count: number
     proposal_ready: boolean
   }
+  /** The long list and short list, and whether their inputs changed since. */
+  lists: {
+    exist: boolean
+    out_of_date: boolean
+    long_size: number
+    short_size: number
+  }
   /** The latest job of each kind, so one does not hide the state of the other. */
   candidate_job: Job | null
   script_job: Job | null
+  screening_job: Job | null
   job: Job | null
 }
 
@@ -146,6 +154,60 @@ export type Script = {
     updated_at: string
   } | null
   proposal: { items: ScriptItem[]; current: boolean } | null
+}
+
+export type ListFlag = { kind: string; detail: string }
+
+/** One candidate on a list. Contact details are joined back for display only. */
+export type ListEntry = {
+  candidate_id: string
+  position: number
+  name: string
+  phone: string
+  email: string
+  rationale: string
+  strengths: string[]
+  concerns: string[]
+  flags: ListFlag[]
+  final_score: number
+  deterministic_score: number
+  llm_score: number
+  on_short_list: boolean
+}
+
+export type Lists = {
+  notice: string
+  vacancy_title: string
+  out_of_date: boolean
+  run: {
+    created_at: string
+    candidates: number
+    assessed: number
+    long_size: number
+    short_size: number
+    weight_deterministic: number
+    model: string
+  }
+  long_list: ListEntry[]
+  short_list: ListEntry[]
+}
+
+export type ListEntryDetail = ListEntry & {
+  notice: string
+  total_years: number
+  requirements: {
+    keywords: string[]
+    kind: 'hard' | 'soft'
+    min_years: number
+    met: boolean
+    keyword: string | null
+    years: number
+  }[]
+  evidence: {
+    keyword: string
+    years: number
+    snippets: { where: string; text: string }[]
+  }[]
 }
 
 type ErrorBody = {
@@ -303,4 +365,26 @@ export function proposeScript(vacancyId: string): Promise<Job> {
 /** Submit the dialog: save the script for the current version of the vacancy. */
 export function saveScript(vacancyId: string, items: ScriptItem[]): Promise<Script> {
   return request<Script>('PUT', `/api/vacancies/${vacancyId}/script`, { items })
+}
+
+/**
+ * Start a screening run in the background: it produces both lists. `replace`
+ * must be true when lists exist: send it only after the user confirmed.
+ */
+export function startScreening(vacancyId: string, replace: boolean): Promise<Job> {
+  return request<Job>('POST', `/api/vacancies/${vacancyId}/screening`, { replace })
+}
+
+export function getLists(vacancyId: string): Promise<Lists> {
+  return request<Lists>('GET', `/api/vacancies/${vacancyId}/lists`)
+}
+
+export function getListEntry(
+  vacancyId: string,
+  candidateId: string,
+): Promise<ListEntryDetail> {
+  return request<ListEntryDetail>(
+    'GET',
+    `/api/vacancies/${vacancyId}/lists/${candidateId}`,
+  )
 }

@@ -10,6 +10,7 @@ FAKE_MODEL = "fake"
 
 PRICES_USD_PER_MILLION: dict[str, tuple[Decimal, Decimal]] = {
     "mistral-small-2603": (Decimal("0.15"), Decimal("0.60")),
+    "mistral-medium-2604": (Decimal("1.50"), Decimal("7.50")),
     FAKE_MODEL: (Decimal("0"), Decimal("0")),
 }
 

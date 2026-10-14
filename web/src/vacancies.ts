@@ -3,6 +3,8 @@ import {
   cancelVacancy,
   generateCandidates,
   getCandidate,
+  getListEntry,
+  getLists,
   getScript,
   listCandidates,
   listVacancies,
@@ -169,5 +171,27 @@ export function useSaveScript(vacancyId: string) {
   return useMutation({
     mutationFn: (items: ScriptItem[]) => saveScript(vacancyId, items),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: VACANCIES_KEY }),
+  })
+}
+
+/** Both lists. Fetched again after a new run, and when they go out of date. */
+export function useLists(vacancy: Vacancy) {
+  return useQuery({
+    queryKey: [
+      'lists',
+      vacancy.id,
+      vacancy.screening_job?.id,
+      vacancy.screening_job?.status,
+      vacancy.lists.out_of_date,
+    ],
+    queryFn: () => getLists(vacancy.id),
+    enabled: vacancy.lists.exist,
+  })
+}
+
+export function useListEntry(vacancyId: string, candidateId: string) {
+  return useQuery({
+    queryKey: ['list-entry', vacancyId, candidateId],
+    queryFn: () => getListEntry(vacancyId, candidateId),
   })
 }

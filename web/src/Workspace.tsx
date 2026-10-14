@@ -1,10 +1,20 @@
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { startScreening } from './api.ts'
 import type { Vacancy } from './api.ts'
 import CandidatesPage from './CandidatesPage.tsx'
 import CandidateView from './CandidateView.tsx'
+import ListEntryView from './ListEntryView.tsx'
+import ListsPage from './ListsPage.tsx'
+import type { WhichList } from './lists.ts'
 import GenerateVacancyDialog from './GenerateVacancyDialog.tsx'
 import Spinner from './Spinner.tsx'
-import { describeChoices, isRunning, useVacancies } from './vacancies.ts'
+import {
+  describeChoices,
+  isRunning,
+  useVacancies,
+  VACANCIES_KEY,
+} from './vacancies.ts'
 import VacancyStatus from './VacancyStatus.tsx'
 import VacancyView from './VacancyView.tsx'
 
@@ -14,6 +24,13 @@ type View =
   | { name: 'vacancy'; vacancyId: string }
   | { name: 'candidates'; vacancyId: string }
   | { name: 'candidate'; vacancyId: string; candidateId: string }
+  | { name: 'lists'; vacancyId: string; which: WhichList }
+  | {
+      name: 'list-entry'
+      vacancyId: string
+      which: WhichList
+      candidateId: string
+    }
 
 /** Short labels on a submitted vacancy: what exists for it already (PRD F3). */
 function StatusChips({ vacancy }: { vacancy: Vacancy }) {
@@ -34,6 +51,9 @@ function StatusChips({ vacancy }: { vacancy: Vacancy }) {
   if (vacancy.script.exists) {
     chips.push(vacancy.script.out_of_date ? 'script out of date' : 'script ready')
   }
+  if (vacancy.lists.exist) {
+    chips.push(vacancy.lists.out_of_date ? 'lists out of date' : 'long list ready')
+  }
   if (chips.length === 0) {
     return null
   }
@@ -51,6 +71,14 @@ function Workspace() {
   const [view, setView] = useState<View>({ name: 'home' })
   const [dialogOpen, setDialogOpen] = useState(false)
   const vacancies = useVacancies()
+  const queryClient = useQueryClient()
+  // One request for a screening run, shared by the vacancy and the list pages,
+  // so a refusal is shown wherever the user ends up.
+  const screening = useMutation({
+    mutationFn: ({ vacancyId, replace }: { vacancyId: string; replace: boolean }) =>
+      startScreening(vacancyId, replace),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: VACANCIES_KEY }),
+  })
 
   const showVacancy = (vacancyId: string) =>
     setView({ name: 'vacancy', vacancyId })
@@ -61,7 +89,9 @@ function Workspace() {
   const opened =
     view.name === 'vacancy' ||
     view.name === 'candidates' ||
-    view.name === 'candidate'
+    view.name === 'candidate' ||
+    view.name === 'lists' ||
+    view.name === 'list-entry'
       ? all.find((vacancy) => vacancy.id === view.vacancyId)
       : undefined
 
@@ -178,10 +208,54 @@ function Workspace() {
               onViewCandidates={() =>
                 setView({ name: 'candidates', vacancyId: opened.id })
               }
+              onViewList={(which) => {
+                // "Generate long-list" makes the lists if there are none yet,
+                // and then shows them. One run produces both lists.
+                screening.reset()
+                if (!opened.lists.exist && !isRunning(opened.screening_job)) {
+                  screening.mutate({ vacancyId: opened.id, replace: false })
+                }
+                setView({ name: 'lists', vacancyId: opened.id, which })
+              }}
             />
           ) : (
             <p>This vacancy does not exist.</p>
           ))}
+
+        {vacancies.isSuccess && view.name === 'lists' && opened && (
+          <ListsPage
+            vacancy={opened}
+            which={view.which}
+            start={{
+              mutate: (replace) =>
+                screening.mutate({ vacancyId: opened.id, replace }),
+              isPending: screening.isPending,
+              error: screening.error,
+            }}
+            onBack={() => setView({ name: 'vacancy', vacancyId: opened.id })}
+            onSwitch={(which) =>
+              setView({ name: 'lists', vacancyId: opened.id, which })
+            }
+            onOpen={(candidateId) =>
+              setView({
+                name: 'list-entry',
+                vacancyId: opened.id,
+                which: view.which,
+                candidateId,
+              })
+            }
+          />
+        )}
+
+        {vacancies.isSuccess && view.name === 'list-entry' && opened && (
+          <ListEntryView
+            vacancyId={opened.id}
+            candidateId={view.candidateId}
+            onBack={() =>
+              setView({ name: 'lists', vacancyId: opened.id, which: view.which })
+            }
+          />
+        )}
 
         {vacancies.isSuccess && view.name === 'candidates' && opened && (
           <CandidatesPage

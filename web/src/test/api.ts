@@ -95,8 +95,10 @@ export function vacancy(overrides: Partial<Vacancy> = {}): Vacancy {
       item_count: 0,
       proposal_ready: false,
     },
+    lists: { exist: false, out_of_date: false, long_size: 0, short_size: 0 },
     candidate_job: null,
     script_job: null,
+    screening_job: null,
     job: job(),
     ...overrides,
   }

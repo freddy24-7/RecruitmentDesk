@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     mistral_model_vacancy: str = "mistral-small-2603"
     mistral_model_cv: str = "mistral-small-2603"
     mistral_model_script: str = "mistral-small-2603"
+    # The model that assesses candidates. To be chosen after a comparison.
+    mistral_model_assessment: str = "mistral-small-2603"
     llm_timeout_seconds: int = 60
     # How many CVs are written at the same time. Low, because of rate limits.
     cv_concurrency: int = 4
@@ -64,6 +66,13 @@ class Settings(BaseSettings):
 
     # How often one workspace may ask the model for a selection script.
     max_script_proposals_per_workspace: int = 20
+
+    # How often one workspace may run the screening (long list and short list).
+    max_screening_runs_per_workspace: int = 10
+
+    # The final score is this share of the facts computed by code, and the rest
+    # of the model's fit score (PRD F6).
+    screening_weight_deterministic: float = 0.5
 
     # Blueprint sampling is seeded, so a pool can be reproduced.
     blueprint_seed: int = 20261013

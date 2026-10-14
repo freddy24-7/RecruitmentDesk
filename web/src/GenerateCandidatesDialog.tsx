@@ -123,6 +123,8 @@ function DialogBody({
               This replaces the {existing} existing candidates of this vacancy.
             </strong>{' '}
             Their CVs are deleted and cannot be brought back.
+            {vacancy.lists.exist &&
+              ' The long list and short list made from them are deleted too.'}
           </p>
         </div>
       )}

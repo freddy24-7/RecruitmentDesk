@@ -18,7 +18,13 @@ from app.db import get_session
 from app.jobs.messages import message_for
 from app.jobs.models import ACTIVE, Job
 from app.jobs.runner import JobRunner
-from app.limits.workspace import CANDIDATE_GENERATION, SCRIPT_PROPOSAL, LimitReached
+from app.limits.workspace import (
+    CANDIDATE_GENERATION,
+    SCREENING,
+    SCRIPT_PROPOSAL,
+    LimitReached,
+)
+from app.screening import service as screening_service
 from app.script import service as script_service
 from app.vacancy import review, service
 from app.vacancy.deletion import ConfirmationRequired, delete_vacancy
@@ -87,6 +93,15 @@ class ScriptStateOut(BaseModel):
     proposal_ready: bool
 
 
+class ListsStateOut(BaseModel):
+    # A long list and a short list exist for this vacancy.
+    exist: bool
+    # True when the vacancy or the script changed after they were made.
+    out_of_date: bool
+    long_size: int
+    short_size: int
+
+
 class VacancyOut(BaseModel):
     id: uuid.UUID
     status: str
@@ -103,8 +118,10 @@ class VacancyOut(BaseModel):
     candidates: CandidatesOut
     script: ScriptStateOut
     # The latest job of each kind, so one does not hide the state of the other.
+    lists: ListsStateOut
     candidate_job: JobOut | None
     script_job: JobOut | None
+    screening_job: JobOut | None
     # The most recent job for this vacancy.
     job: JobOut | None
 
@@ -167,6 +184,9 @@ async def _vacancy_out(session: AsyncSession, vacancy: Vacancy) -> VacancyOut:
     proposal = await script_service.latest_proposal(session, vacancy.id)
     candidate_job = await _latest_job(session, vacancy.id, CANDIDATE_GENERATION)
     script_job = await _latest_job(session, vacancy.id, SCRIPT_PROPOSAL)
+    screening_job = await _latest_job(session, vacancy.id, SCREENING)
+    inputs = await screening_service.read_inputs(session, vacancy)
+    run = await screening_service.latest_run(session, vacancy.id)
     return VacancyOut(
         id=vacancy.id,
         status=vacancy.status,
@@ -187,8 +207,7 @@ async def _vacancy_out(session: AsyncSession, vacancy: Vacancy) -> VacancyOut:
             for action in review.available_actions(
                 vacancy,
                 job_running=job_running,
-                has_candidates=ready > 0,
-                has_script=script is not None,
+                lists_problem=inputs.problem(vacancy),
             )
         ],
         candidates=CandidatesOut(
@@ -204,7 +223,14 @@ async def _vacancy_out(session: AsyncSession, vacancy: Vacancy) -> VacancyOut:
             proposal_ready=proposal is not None
             and proposal.vacancy_version == vacancy.version,
         ),
+        lists=ListsStateOut(
+            exist=run is not None,
+            out_of_date=run is not None and run.out_of_date(vacancy, script),
+            long_size=run.result["long_size"] if run else 0,
+            short_size=run.result["short_size"] if run else 0,
+        ),
         candidate_job=job_out(candidate_job) if candidate_job else None,
+        screening_job=job_out(screening_job) if screening_job else None,
         script_job=job_out(script_job) if script_job else None,
         job=job_out(job) if job else None,
     )
@@ -397,6 +423,8 @@ async def retry_job(
             queued = await candidate_service.retry_generation(session, job)
         elif job.type == SCRIPT_PROPOSAL:
             queued = await script_service.retry_proposal(session, job)
+        elif job.type == SCREENING:
+            queued = await screening_service.retry_screening(session, job)
         else:
             queued = await service.retry_generation(session, job, settings)
     except LimitReached as limit:

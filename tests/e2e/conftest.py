@@ -52,7 +52,8 @@ async def _reset_database() -> None:
         async with async_sessionmaker(engine)() as session:
             await session.execute(
                 text(
-                    "TRUNCATE selection_script, candidate, usage_record, job, "
+                    "TRUNCATE assessment, selection_script, candidate, "
+                    "usage_record, job, "
                     "vacancy, workspace, "
                     "failed_attempt, "
                     "access_code RESTART IDENTITY CASCADE"

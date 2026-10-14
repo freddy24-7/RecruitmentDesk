@@ -134,7 +134,7 @@ The app will be online and calls a paid model, so nothing is reachable without a
   3. **CV writing, by the model.** The model writes the prose of a CV for each blueprint (profile, job titles, company names, highlights, education), in batches with limited concurrency. Dates, the skills per job, languages and contact details are added by code. So the dated employment history in a CV is exactly the planted one. An answer that names a skill the candidate does not have, names a skill in a job where it was not used, or contains personal details is treated as invalid output.
 - Contact details are clearly fictional: email addresses on a reserved domain (`example.com`), phone numbers from the range Ofcom reserves for drama (`+44 7700 900xxx`), and a "synthetic data" label in the UI.
 - Progress shows as "x of N created". The candidates are stored on a **separate page per vacancy** (searchable, sortable, with a CV detail view).
-- Regenerating candidates replaces the existing ones, with a confirmation dialog, and marks the script results and lists as out of date.
+- Regenerating candidates replaces the existing ones, with a confirmation dialog. The long list and short list made from the old candidates are deleted with them, because they name people who no longer exist. The dialog says so.
 - The CV text must not include birth date, photo, gender, marital status or nationality.
 
 ### F5 Generate selection script
@@ -148,11 +148,15 @@ The app will be online and calls a paid model, so nothing is reachable without a
 
 ### F6 Long list and short list
 - Both are available only when the vacancy, the candidates and a script exist.
+- **One screening run produces both lists.** "Generate long-list" and "Generate short-list" each make sure a current run exists and then show their list. If the candidates or the script are out of date, both actions are disabled and say which to redo first.
 - **Sizes:** long list = `min(10, max(1, round(0.30 × N)))`, short list = `min(4, max(1, round(0.10 × N)))`, where N is the number of candidates. `round` means round half up, computed with integer arithmetic (not Python's built-in `round`, which rounds half to even), so N = 15 gives a long list of 5 and N = 25 gives a short list of 3. The short list is always a subset of the long list. For example: N = 100 gives 10 and 4, N = 20 gives 6 and 2, N = 5 gives 2 and 1.
 - **Method (two stages):**
   1. **Deterministic pre-scoring, by code** on a blind version of each CV: keyword matches, years of experience per keyword computed from the dated employment history, and hard-requirement checks.
   2. **LLM assessment** of the strongest candidates (for example the top 2 × the long-list size, or everyone if N is small). The model reads the blind CV, the vacancy and the script and returns a structured assessment: fit score, strengths, concerns, and a paragraph of reasoning. It is explicitly allowed to weigh more than keywords and years, such as the relevance of past roles and sectors, career progression, and transferable skills.
 - **Evidence check, by code:** every keyword the model says it found must actually appear in that CV, and every number of years it states is compared with the computed value. Unsupported claims are removed from the text and flagged. This is the same principle as resolving citations in code.
+  - The model is not given the computed facts: it reads the CV itself, and code checks what it says.
+  - A strength names the keywords it rests on, a concern the keywords the candidate lacks, so both can be checked. A sentence of the reasoning that names a keyword the CV does not contain, or years that match nothing computed, is removed.
+  - The numbers shown to the recruiter are always the computed ones.
 - Final ranking combines the deterministic score and the LLM score with a documented, configurable weighting.
 - Re-running with the same inputs should give a very similar list. Use low temperature, a pinned model version, and a fixed prompt version.
 

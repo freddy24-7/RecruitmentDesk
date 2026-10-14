@@ -152,11 +152,51 @@ def fake_script(request: LlmRequest) -> str:
     )
 
 
+def fake_assessment(request: LlmRequest) -> str:
+    """An assessment that agrees with the facts code computed.
+
+    The fake is handed those facts in a variable that is not part of the
+    prompt. A real model has to read the CV for itself.
+    """
+    facts = json.loads(request.variables["fake_facts_json"])
+    found = [fact for fact in facts["keywords"] if fact["found"]]
+    missing = [fact["keyword"] for fact in facts["keywords"] if not fact["found"]]
+    return json.dumps(
+        {
+            "fit_score": int(request.variables["fake_score"]),
+            "found": [
+                {"keyword": fact["keyword"], "years": fact["years"]} for fact in found
+            ],
+            "strengths": [
+                {
+                    "text": "Has hands-on experience with tools the vacancy asks for.",
+                    "keywords": [fact["keyword"] for fact in found],
+                }
+            ]
+            if found
+            else [{"text": "Has steady work experience.", "keywords": []}],
+            "concerns": [
+                {
+                    "text": "Some of the screening keywords are not in the CV.",
+                    "keywords": missing,
+                }
+            ]
+            if missing
+            else [],
+            "reasoning": (
+                f"{FAKE_NOTE} The past roles are relevant to the vacancy. "
+                "The career shows steady progression."
+            ),
+        }
+    )
+
+
 DEFAULT_RESPONDERS: dict[str, Responder] = {
     "vacancy": fake_vacancy,
     "vacancy_profile": fake_vacancy_profile,
     "cv": fake_cv,
     "script": fake_script,
+    "assessment": fake_assessment,
 }
 
 

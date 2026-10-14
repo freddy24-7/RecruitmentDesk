@@ -1,7 +1,8 @@
 """The one place where vacancy data is deleted (CLAUDE.md rule 8).
 
 "Cancel vacancy" deletes the vacancy and everything that belongs to it.
-Replacing candidates deletes the old ones. No other module deletes rows; a
+Replacing candidates deletes the old ones, and a new screening run deletes
+the old lists. No other module deletes rows; a
 test checks that. Every function here needs an explicit confirmation, which
 the UI only sends after its confirmation dialog.
 """
@@ -12,6 +13,7 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.candidates.models import Candidate
+from app.screening.models import Assessment
 from app.vacancy.models import Vacancy
 
 
@@ -46,3 +48,15 @@ async def delete_candidates(
     if not confirmed:
         raise ConfirmationRequired
     await session.execute(delete(Candidate).where(Candidate.vacancy_id == vacancy_id))
+
+
+async def delete_assessments(
+    session: AsyncSession, vacancy_id: uuid.UUID, *, confirmed: bool
+) -> None:
+    """Delete the long list and short list of a vacancy, before a new run.
+
+    The caller commits.
+    """
+    if not confirmed:
+        raise ConfirmationRequired
+    await session.execute(delete(Assessment).where(Assessment.vacancy_id == vacancy_id))

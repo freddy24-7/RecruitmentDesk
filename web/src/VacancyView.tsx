@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Action, Vacancy, VacancySections } from './api.ts'
 import CandidateProgress from './CandidateProgress.tsx'
 import GenerateCandidatesDialog from './GenerateCandidatesDialog.tsx'
+import type { WhichList } from './lists.ts'
 import SelectionScriptDialog from './SelectionScriptDialog.tsx'
 import {
   LIST_SECTIONS,
@@ -18,6 +19,8 @@ type Props = {
   onCancelled: () => void
   onSubmitted: () => void
   onViewCandidates: () => void
+  /** Open the long or short list; starts a screening run if there are none yet. */
+  onViewList: (which: WhichList) => void
 }
 
 function formatDate(iso: string): string {
@@ -106,6 +109,7 @@ function VacancyView({
   onCancelled,
   onSubmitted,
   onViewCandidates,
+  onViewList,
 }: Props) {
   const [editing, setEditing] = useState(false)
   const [generatingCandidates, setGeneratingCandidates] = useState(false)
@@ -167,6 +171,10 @@ function VacancyView({
                   proposeScript.mutate()
                 }
                 setEditingScript(true)
+              } else if (key === 'generate_long_list') {
+                onViewList('long')
+              } else if (key === 'generate_short_list') {
+                onViewList('short')
               }
             }}
           />
@@ -174,6 +182,24 @@ function VacancyView({
             vacancy={vacancy}
             onViewCandidates={onViewCandidates}
           />
+          {vacancy.lists.exist && (
+            <p className={vacancy.lists.out_of_date ? 'flags' : undefined} role="note">
+              {vacancy.lists.out_of_date ? (
+                <>
+                  <strong>Lists out of date.</strong> The vacancy or the
+                  selection script changed after the lists were made.{' '}
+                </>
+              ) : (
+                'Lists ready. '
+              )}
+              <button type="button" onClick={() => onViewList('long')}>
+                View long list ({vacancy.lists.long_size})
+              </button>{' '}
+              <button type="button" onClick={() => onViewList('short')}>
+                View short list ({vacancy.lists.short_size})
+              </button>
+            </p>
+          )}
           {vacancy.script.exists && (
             <p className={vacancy.script.out_of_date ? 'flags' : undefined} role="note">
               {vacancy.script.out_of_date ? (

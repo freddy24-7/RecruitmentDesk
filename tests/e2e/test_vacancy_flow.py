@@ -288,3 +288,79 @@ def test_propose_edit_and_save_a_selection_script(page: Page, app_url: str) -> N
     page.get_by_role("button", name="Save changes").click()
     page.get_by_role("button", name="Stop editing").click()
     expect(page.get_by_text("Selection script out of date.")).to_be_visible()
+
+
+def test_generate_the_lists_and_read_the_evidence(page: Page, app_url: str) -> None:
+    submitted_vacancy(page, app_url)
+    notice = page.get_by_text("Suggestions to support a recruiter. A person decides.")
+
+    # Before candidates and a script exist, the list actions say what is missing.
+    long_list = page.get_by_role("button", name="Generate long-list")
+    expect(long_list).to_have_accessible_description(
+        "Generate candidates and a selection script first."
+    )
+
+    page.get_by_role("button", name="Generate candidates").click()
+    dialog = page.get_by_role("dialog", name="Generate candidates")
+    dialog.get_by_label("Number of candidates").fill("10")
+    dialog.get_by_role("button", name="Generate", exact=True).click()
+    expect(dialog.get_by_role("button", name="View candidates (10)")).to_be_visible(
+        timeout=40_000
+    )
+    page.keyboard.press("Escape")
+    expect(long_list).to_have_accessible_description(
+        "Generate a selection script first."
+    )
+
+    page.get_by_role("button", name="Generate selection script").click()
+    script = page.get_by_role("dialog", name="Selection script")
+    expect(script.get_by_role("group", name="Item 1")).to_be_visible(timeout=15_000)
+    script.get_by_role("button", name="Submit").click()
+    expect(page.get_by_text("Selection script ready (4 items).")).to_be_visible()
+
+    # Now the lists can be made. One run produces both.
+    expect(long_list).not_to_have_attribute("aria-disabled", "true")
+    long_list.click()
+    expect(
+        page.get_by_role("heading", name="Long list for Cloud Engineer")
+    ).to_be_visible()
+    expect(notice).to_be_visible()
+    expect(page.get_by_role("status")).to_have_text(
+        re.compile(r"\d of 6 candidates assessed")
+    )
+
+    # 10 candidates: a long list of 3 and a short list of 1.
+    expect(page.get_by_role("heading", level=3)).to_have_count(3, timeout=40_000)
+    first = page.get_by_role("heading", level=3).first
+    expect(first).to_have_text(re.compile(r"^1\. \S+"))
+    top = page.locator("li.card").first
+    # Name, phone, email, and the paragraph explaining why.
+    expect(top).to_contain_text(re.compile(r"\+44 7700 900\d{3} · \S+@example\.com"))
+    expect(top).to_contain_text("Found in the CV: ")
+    expect(top).to_contain_text("years)")
+    expect(notice).to_be_visible()
+
+    # The evidence: where in the CV the claims come from.
+    top.get_by_role("button", name="Show evidence").click()
+    expect(page.get_by_role("heading", name="Requirements")).to_be_visible()
+    expect(
+        page.get_by_role("row", name=re.compile("Microsoft Azure or AWS"))
+    ).to_contain_text("Met")
+    expect(page.get_by_role("heading", name="Evidence from the CV")).to_be_visible()
+    expect(page.get_by_text(re.compile(r"Job 1: .+: “")).first).to_be_visible()
+    expect(notice).to_be_visible()
+
+    # The short list is the top of the long list.
+    page.get_by_role("button", name="Back to list").click()
+    page.get_by_role("button", name="Short list", exact=True).click()
+    expect(
+        page.get_by_role("heading", name="Short list for Cloud Engineer")
+    ).to_be_visible()
+    expect(page.get_by_role("heading", level=3)).to_have_count(1)
+    expect(page.get_by_role("heading", level=3)).to_have_text(first.inner_text())
+    expect(notice).to_be_visible()
+
+    # Back on the vacancy the lists are there to open again.
+    page.get_by_role("button", name="Back to vacancy").click()
+    expect(page.get_by_role("button", name="View long list (3)")).to_be_visible()
+    expect(page.get_by_role("button", name="View short list (1)")).to_be_visible()

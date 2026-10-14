@@ -92,36 +92,31 @@ class Action:
     reason: str | None = None
 
 
-NOT_BUILT_YET = "Not available yet in this version of the demo."
 JOB_RUNNING = "Wait until the running job has finished."
 
 
 def available_actions(
-    vacancy: Vacancy, *, job_running: bool, has_candidates: bool, has_script: bool
+    vacancy: Vacancy, *, job_running: bool, lists_problem: str | None
 ) -> list[Action]:
     """The actions on a submitted vacancy, each enabled or disabled with a reason.
 
     One function decides this, so the API and the screen cannot disagree. An
     action whose prerequisites are missing stays visible (PRD F3).
+    `lists_problem` says why the lists cannot be made now, or is None.
     """
     if vacancy.status != SUBMITTED:
         return []
     busy = JOB_RUNNING if job_running else None
-
-    # Both lists need candidates and a script (PRD F6).
-    if not has_candidates and not has_script:
-        lists_need = "Generate candidates and a selection script first."
-    elif not has_candidates:
-        lists_need = "Generate candidates first."
-    elif not has_script:
-        lists_need = "Generate a selection script first."
-    else:
-        lists_need = NOT_BUILT_YET
+    # Both lists need current candidates and a current script (PRD F6).
+    lists_reason = lists_problem or busy
+    lists_enabled = lists_reason is None
 
     return [
         Action("edit", "Edit vacancy", enabled=True),
         Action("generate_candidates", "Generate candidates", not job_running, busy),
         Action("generate_script", "Generate selection script", not job_running, busy),
-        Action("generate_long_list", "Generate long-list", False, lists_need),
-        Action("generate_short_list", "Generate short-list", False, lists_need),
+        Action("generate_long_list", "Generate long-list", lists_enabled, lists_reason),
+        Action(
+            "generate_short_list", "Generate short-list", lists_enabled, lists_reason
+        ),
     ]

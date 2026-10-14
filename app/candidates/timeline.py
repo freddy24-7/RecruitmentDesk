@@ -42,7 +42,7 @@ def add_months(month: str, months: int) -> str:
     return f"{index // 12:04d}-{index % 12 + 1:02d}"
 
 
-def _months_covered(spans: Iterable[tuple[int, int]]) -> int:
+def months_covered(spans: Iterable[tuple[int, int]]) -> int:
     """Months covered by a set of spans. Overlapping jobs are not counted twice."""
     covered: set[int] = set()
     for first, last in spans:
@@ -50,7 +50,7 @@ def _months_covered(spans: Iterable[tuple[int, int]]) -> int:
     return len(covered)
 
 
-def _span(position: DatedPosition, as_of: date) -> tuple[int, int]:
+def span(position: DatedPosition, as_of: date) -> tuple[int, int]:
     """First and last month of a position, both included. No end means "now"."""
     first = month_index(position.start)
     last = month_index(position.end or month_of(as_of))
@@ -63,7 +63,7 @@ def _years(months: int) -> float:
 
 def total_years(positions: Iterable[DatedPosition], as_of: date) -> float:
     """Years of work experience over all positions."""
-    return _years(_months_covered(_span(position, as_of) for position in positions))
+    return _years(months_covered(span(position, as_of) for position in positions))
 
 
 def years_per_skill(
@@ -73,5 +73,5 @@ def years_per_skill(
     spans: dict[str, list[tuple[int, int]]] = {}
     for position in positions:
         for skill in position.skills:
-            spans.setdefault(skill, []).append(_span(position, as_of))
-    return {skill: _years(_months_covered(found)) for skill, found in spans.items()}
+            spans.setdefault(skill, []).append(span(position, as_of))
+    return {skill: _years(months_covered(found)) for skill, found in spans.items()}
