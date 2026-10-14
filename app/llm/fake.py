@@ -206,13 +206,16 @@ def fake_interview(request: LlmRequest) -> str:
         {
             "questions": [
                 {
+                    # The reference goes in `source` only: the prompts ask
+                    # not to mention it in the text.
                     "question": (
-                        f"{FAKE_NOTE} Tell me about a time this mattered ({ref})."
+                        f"{FAKE_NOTE} Tell me about a time this mattered "
+                        f"(question {number})."
                     ),
                     "purpose": "Shows real experience with it.",
                     "source": ref,
                 }
-                for ref in refs
+                for number, ref in enumerate(refs, start=1)
             ]
             or [
                 {

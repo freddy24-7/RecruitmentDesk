@@ -15,10 +15,11 @@ from app.evaluation.run import (
     _jaccard,
     _quality,
     evaluate,
+    interview_quality,
     to_markdown,
 )
-from app.llm.base import LlmRequest
-from app.llm.fake import FakeLlm, fake_assessment
+from app.llm.base import TIMEOUT, LlmError, LlmRequest
+from app.llm.fake import FakeLlm, fake_assessment, fake_vacancy
 from scripts.evaluate_lists import expected_calls
 
 
@@ -53,6 +54,12 @@ async def test_a_fake_that_answers_from_the_ground_truth_scores_perfectly(
             assert swap["input_identical"]
             assert not swap["names_in_input"]
             assert swap["difference"] == 0
+        assert result.interview is not None
+        assert result.interview.sets == 1 + result.short_size
+        assert result.interview.questions > 0
+        assert result.interview.dropped == 0
+        assert result.interview.flagged == 0
+        assert result.interview.reference_codes == 0
     # The run makes as many model calls as the script announces before
     # asking for confirmation.
     assert len(llm.requests) == expected_calls(2, 10, 2, 1)
@@ -105,7 +112,104 @@ def test_overlap_of_repeated_lists() -> None:
 
 def test_expected_calls_for_the_full_run() -> None:
     # Per vacancy: vacancy, profile, 20 CVs, script, 3 runs of 12
-    # assessments, 2 name swaps of 2 calls.
-    assert expected_calls(4, 20, 3, 2) == 4 * (1 + 1 + 20 + 1 + 36 + 4)
-    # 5 candidates give a long list of 2, so 4 are assessed per run.
-    assert expected_calls(1, 5, 1, 0) == 1 + 1 + 5 + 1 + 4
+    # assessments, 2 name swaps of 2 calls, and interview questions for a
+    # short list of 2 (one core set, two follow-up sets).
+    assert expected_calls(4, 20, 3, 2) == 4 * (1 + 1 + 20 + 1 + 36 + 4 + 3)
+    # 5 candidates give a long list of 2, so 4 are assessed per run, and a
+    # short list of 1.
+    assert expected_calls(1, 5, 1, 0) == 1 + 1 + 5 + 1 + 4 + 2
+
+
+async def test_interview_questions_that_break_the_rules_are_counted(
+    app: FastAPI, llm: FakeLlm
+) -> None:
+    def bad_questions(request: LlmRequest) -> str:
+        return json.dumps(
+            {
+                "questions": [
+                    {
+                        "question": "How old are you?",
+                        "purpose": "Checks S1.",
+                        "source": "S1",
+                    },
+                    {
+                        "question": "Tell me about X.",
+                        "purpose": "Probes X.",
+                        "source": "Z9",
+                    },
+                ]
+            }
+        )
+
+    llm.responders["interview"] = bad_questions
+
+    [result] = await run(app)
+
+    assert result.interview is not None
+    assert result.interview.dropped >= 1
+    assert result.interview.flagged >= 1
+    assert result.interview.reference_codes >= 1
+
+
+def test_interview_quality_counts_per_question() -> None:
+    def question(
+        text: str, purpose: str = "", flags: list[str] | None = None
+    ) -> dict[str, object]:
+        return {"question": text, "purpose": purpose, "flags": flags or []}
+
+    body = {
+        "core": {
+            "questions": [question("Describe a deployment."), question("As in P2?")],
+            "dropped": [{"kind": "source_not_found", "detail": "S9"}],
+        },
+        "follow_ups": [
+            {
+                "questions": [question("Do you have children?", flags=["children"])],
+                "dropped": [],
+            }
+        ],
+    }
+
+    quality = interview_quality(body)
+
+    assert (quality.sets, quality.questions, quality.dropped) == (2, 3, 1)
+    assert (quality.flagged, quality.reference_codes) == (1, 1)
+    assert interview_quality({"core": None, "follow_ups": []}).sets == 0
+
+
+async def test_a_failed_name_swap_call_is_reported_and_the_run_goes_on(
+    app: FastAPI, llm: FakeLlm
+) -> None:
+    llm.responders["evaluation_name_swap"] = timing_out
+
+    [result] = await run(app)
+
+    assert result.name_swap
+    assert all(swap["error"] == "llm_timeout" for swap in result.name_swap)
+    assert all(swap["difference"] is None for swap in result.name_swap)
+    # Whether the input was identical is computed by code, without the model.
+    assert all(swap["input_identical"] for swap in result.name_swap)
+    assert result.interview is not None
+
+
+async def test_a_scenario_that_fails_is_reported_and_the_others_still_run(
+    app: FastAPI, llm: FakeLlm
+) -> None:
+    def vacancy_for_one_scenario(request: LlmRequest) -> str:
+        if "Financial Controller" in json.dumps(request.variables):
+            return "not json"
+        return fake_vacancy(request)
+
+    llm.responders["vacancy"] = vacancy_for_one_scenario
+
+    report = await evaluate(
+        app, "fake", vacancies=2, candidates=10, repeats=1, name_swaps=0
+    )
+
+    assert [r.scenario["title"] for r in report.results] == ["Cloud Engineer"]
+    assert [f["scenario"] for f in report.failed] == ["Financial Controller"]
+    assert "Not completed:" in to_markdown(report)
+
+
+def timing_out(request: LlmRequest) -> str:
+    raise LlmError(TIMEOUT)

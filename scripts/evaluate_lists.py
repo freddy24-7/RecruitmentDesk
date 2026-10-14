@@ -37,7 +37,13 @@ def expected_calls(
     """Roughly how many model calls a run makes (CV retries come on top)."""
     long = min(10, max(1, (candidates * 30 + 50) // 100))
     assessed = min(candidates, 2 * long)
-    per_vacancy = 1 + 1 + candidates + 1 + repeats * assessed + 2 * name_swaps
+    short = min(4, max(1, (candidates * 10 + 50) // 100))
+    # Interview questions: one core set and one follow-up set per short-listed
+    # candidate.
+    questions = 1 + short
+    per_vacancy = (
+        1 + 1 + candidates + 1 + repeats * assessed + 2 * name_swaps + questions
+    )
     return vacancies * per_vacancy
 
 

@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     failed_attempts_per_ip: int = 10
     failed_attempts_window_minutes: int = 15
     failed_attempts_global_per_hour: int = 100
+    # New sessions (each one a fresh workspace with its own limits) that one
+    # IP address may start per hour.
+    max_sessions_per_ip_per_hour: int = 5
 
     # The model. `fake` answers without the network and without cost: use it
     # in development. Tests always use the fake.

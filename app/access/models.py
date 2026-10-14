@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -40,8 +40,14 @@ class Workspace(Base):
     """A visitor's private workspace. Its id is what the session cookie holds."""
 
     __tablename__ = "workspace"
+    __table_args__ = (
+        Index("ix_workspace_ip_hash_created_at", "ip_hash", "created_at"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     access_code_id: Mapped[int] = mapped_column(ForeignKey("access_code.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    # Keyed hash of the address that started it, for the per-IP limit on new
+    # sessions. Never the address itself.
+    ip_hash: Mapped[str | None] = mapped_column(String(64))

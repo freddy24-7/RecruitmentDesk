@@ -20,6 +20,7 @@ from app.access.sessions import (
 from app.config import Settings, get_settings
 from app.db import get_session
 from app.limits.attempts import AttemptLimits, is_locked_out, record_failure
+from app.limits.sessions import TOO_MANY_SESSIONS_MESSAGE, WINDOW, may_start_session
 from app.web.errors import ApiError
 
 log = structlog.get_logger()
@@ -84,7 +85,20 @@ async def start_session(
             headers={"Retry-After": str(int(limits.per_ip_window.total_seconds()))},
         )
 
-    outcome = await redeem_code(session, body.code, pepper, now)
+    # Checked before the code is counted, so a refused request does not use
+    # up a redemption.
+    if not await may_start_session(
+        session, ip_hash, settings.max_sessions_per_ip_per_hour, now
+    ):
+        log.warning("access.too_many_sessions")
+        raise ApiError(
+            429,
+            "too_many_sessions",
+            TOO_MANY_SESSIONS_MESSAGE,
+            headers={"Retry-After": str(int(WINDOW.total_seconds()))},
+        )
+
+    outcome = await redeem_code(session, body.code, pepper, now, ip_hash)
 
     if not isinstance(outcome, Redeemed):
         await record_failure(session, ip_hash, now)

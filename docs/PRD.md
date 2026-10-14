@@ -341,6 +341,7 @@ Decided (2026-10-13):
 - Daily spend cap: $2.00 by default, set through `DAILY_SPEND_CAP_USD`, from the estimated cost in the usage records (stage 8).
 - Equal final scores are broken by the ranking computed by code, so the same input always gives the same lists (stage 8).
 - "Reset demo" deletes the workspace's vacancies but keeps its session and its limits (stage 8).
+- Per-IP rate limit: at most 5 new sessions per IP address per hour (`MAX_SESSIONS_PER_IP_PER_HOUR`), checked before a code use is counted. Visitors behind one network share it (stage 8).
 
 Still open:
 

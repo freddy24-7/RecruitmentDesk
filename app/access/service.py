@@ -23,7 +23,11 @@ class Redeemed:
 
 
 async def redeem_code(
-    session: AsyncSession, raw_code: str, pepper: str, now: datetime
+    session: AsyncSession,
+    raw_code: str,
+    pepper: str,
+    now: datetime,
+    ip_hash: str | None = None,
 ) -> Redeemed | RedeemFailure:
     """Count one use of the code and create a workspace. The caller commits."""
     code = normalize(raw_code)
@@ -54,7 +58,9 @@ async def redeem_code(
         )
         return RedeemFailure.EXHAUSTED if known is not None else RedeemFailure.INVALID
 
-    workspace = Workspace(access_code_id=row.id, created_at=now, last_seen_at=now)
+    workspace = Workspace(
+        access_code_id=row.id, created_at=now, last_seen_at=now, ip_hash=ip_hash
+    )
     session.add(workspace)
     await session.flush()
     return Redeemed(workspace=workspace, code_label=row.label)

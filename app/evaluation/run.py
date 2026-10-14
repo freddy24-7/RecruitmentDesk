@@ -9,6 +9,7 @@ Nothing here may change the ground truth to improve a score.
 """
 
 import json
+import re
 import statistics
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -27,7 +28,9 @@ from app.candidates.models import Candidate
 from app.candidates.schemas import Cv
 from app.config import get_settings
 from app.db import get_sessionmaker
+from app.interview import service as interview
 from app.jobs.runner import JobRunner
+from app.llm.base import LlmError
 from app.llm.prompts import load_prompt
 from app.llm.service import LlmService
 from app.llm.usage import UsageRecord
@@ -87,6 +90,39 @@ class ListQuality:
 
 
 @dataclass
+class InterviewQuality:
+    sets: int  # the core set and one follow-up set per short-listed candidate
+    questions: int  # kept and shown to the recruiter
+    dropped: int  # removed because they named a source that was not offered
+    flagged: int  # flagged for review: may touch a protected attribute
+    # Questions whose text still shows a reference code such as "S1" or "P2"
+    # (the prompts ask the model not to). The AWS service "S3" counts too.
+    reference_codes: int
+
+
+# A reference code as the prompts offer them: S (script item), P (strength),
+# C (concern) and a number. Used only to count, never to decide anything.
+REFERENCE_CODE = re.compile(r"\b[SPC]\d+\b")
+
+
+def interview_quality(body: dict[str, Any]) -> InterviewQuality:
+    """Measure the interview questions as GET /interview returns them."""
+    sets = ([body["core"]] if body["core"] else []) + body["follow_ups"]
+    questions = [q for s in sets for q in s["questions"]]
+    return InterviewQuality(
+        sets=len(sets),
+        questions=len(questions),
+        dropped=sum(len(s["dropped"]) for s in sets),
+        flagged=sum(1 for q in questions if q["flags"]),
+        reference_codes=sum(
+            1
+            for q in questions
+            if REFERENCE_CODE.search(f"{q['question']} {q['purpose']}")
+        ),
+    )
+
+
+@dataclass
 class VacancyResult:
     scenario: dict[str, Any]
     candidates: int
@@ -108,6 +144,7 @@ class VacancyResult:
     name_swap: list[dict[str, Any]]
     vacancy_rubric: dict[str, bool]
     script_items: list[str]
+    interview: InterviewQuality | None = None
     errors: list[str] = field(default_factory=list)
 
 
@@ -219,6 +256,16 @@ class Evaluation:
             )
             runs.append(await self._assessments(uuid.UUID(vacancy_id)))
 
+        # Interview questions from the short list of the last run.
+        questions = None
+        try:
+            await self._post(f"/api/vacancies/{vacancy_id}/interview", {})
+            questions = interview_quality(
+                await self._get(f"/api/vacancies/{vacancy_id}/interview")
+            )
+        except RuntimeError as problem:
+            errors.append(f"interview questions: {problem}")
+
         async with get_sessionmaker()() as session:
             people = (
                 await session.scalars(
@@ -298,6 +345,7 @@ class Evaluation:
                 f"{i.kind.value}: {' | '.join(i.any_of)} ({i.min_years}y)"
                 for i in items
             ],
+            interview=questions,
             errors=errors,
         )
 
@@ -339,42 +387,46 @@ class Evaluation:
                     continue
                 cv = Cv.model_validate(person.cv)
                 texts = []
-                scores = []
                 for name in (person.name, "Jordan Vermeulen"):
                     named = cv.model_copy(update={"profile": f"{name}. {cv.profile}"})
-                    text = blind_text(
-                        named, name=name, email=person.email, phone=person.phone
+                    texts.append(
+                        blind_text(
+                            named, name=name, email=person.email, phone=person.phone
+                        )
                     )
-                    texts.append(text)
-                    answer: ModelAssessment = await self.llm.generate(
-                        call_type="evaluation_name_swap",
-                        model=settings.mistral_model_assessment,
-                        prompt=load_prompt(screening.PROMPT),
-                        variables=variables
-                        | {
-                            "cv_text": text,
-                            "fake_facts_json": json.dumps(row.evidence),
-                            "fake_score": str(round(row.deterministic_score * 100)),
-                        },
-                        schema=ModelAssessment,
-                        temperature=screening.TEMPERATURE,
-                        max_tokens=screening.MAX_TOKENS,
-                        workspace_id=None,
-                        job_id=None,
-                    )
-                    scores.append(answer.fit_score)
-                results.append(
-                    {
-                        "input_identical": texts[0] == texts[1],
-                        "names_in_input": any(
-                            part in t
-                            for t in texts
-                            for part in (person.name, "Vermeulen")
-                        ),
-                        "scores": scores,
-                        "difference": abs(scores[0] - scores[1]),
-                    }
-                )
+                swap: dict[str, Any] = {
+                    "input_identical": texts[0] == texts[1],
+                    "names_in_input": any(
+                        part in t for t in texts for part in (person.name, "Vermeulen")
+                    ),
+                    "scores": [],
+                    "difference": None,
+                }
+                try:
+                    for text in texts:
+                        answer: ModelAssessment = await self.llm.generate(
+                            call_type="evaluation_name_swap",
+                            model=settings.mistral_model_assessment,
+                            prompt=load_prompt(screening.PROMPT),
+                            variables=variables
+                            | {
+                                "cv_text": text,
+                                "fake_facts_json": json.dumps(row.evidence),
+                                "fake_score": str(round(row.deterministic_score * 100)),
+                            },
+                            schema=ModelAssessment,
+                            temperature=screening.TEMPERATURE,
+                            max_tokens=screening.MAX_TOKENS,
+                            workspace_id=None,
+                            job_id=None,
+                        )
+                        swap["scores"].append(answer.fit_score)
+                    swap["difference"] = abs(swap["scores"][0] - swap["scores"][1])
+                except LlmError as error:
+                    # One failed call does not end the evaluation: the swap is
+                    # reported without a score difference.
+                    swap["error"] = error.kind
+                results.append(swap)
         return results
 
 
@@ -387,6 +439,8 @@ class Report:
     seed: int
     results: list[VacancyResult]
     cost: dict[str, dict[str, float]]
+    # Scenarios that could not be completed, with the reason.
+    failed: list[dict[str, str]] = field(default_factory=list)
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), indent=1, default=str)
@@ -441,22 +495,29 @@ async def evaluate(
                 )
             )
             await session.commit()
-    transport = httpx.ASGITransport(app=app)
     results = []
-    async with httpx.AsyncClient(
-        transport=transport, base_url="https://eval", timeout=600
-    ) as client:
-        evaluation = Evaluation(app, client)
-        for scenario in SCENARIOS[:vacancies]:
-            # One workspace per vacancy, as a visitor would have: the
-            # per-workspace limits apply unchanged.
-            client.cookies.clear()
+    failed: list[dict[str, str]] = []
+    for number, scenario in enumerate(SCENARIOS[:vacancies], start=1):
+        # One workspace per vacancy, each from its own documentation address
+        # (RFC 5737), as separate visitors: the per-workspace and per-IP
+        # limits apply unchanged.
+        transport = httpx.ASGITransport(app=app, client=(f"192.0.2.{number}", 50000))
+        async with httpx.AsyncClient(
+            transport=transport, base_url="https://eval", timeout=600
+        ) as client:
             signed = await client.post("/api/session", json={"code": EVAL_CODE})
             if signed.status_code != 200:
                 raise RuntimeError("the evaluation could not start a session")
-            results.append(
-                await evaluation.run_scenario(scenario, candidates, repeats, name_swaps)
-            )
+            evaluation = Evaluation(app, client)
+            try:
+                results.append(
+                    await evaluation.run_scenario(
+                        scenario, candidates, repeats, name_swaps
+                    )
+                )
+            except (RuntimeError, LlmError) as problem:
+                # Reported, and the other scenarios still run.
+                failed.append({"scenario": scenario["title"], "reason": str(problem)})
     async with get_sessionmaker()() as session:
         cost = await usage_summary(session, started)
     return Report(
@@ -468,13 +529,17 @@ async def evaluate(
             "cv": settings.mistral_model_cv,
             "script": settings.mistral_model_script,
             "assessment": settings.mistral_model_assessment,
+            "interview": settings.mistral_model_interview,
         },
         prompts={
             "assessment": screening.PROMPT,
+            "interview_core": interview.CORE_PROMPT,
+            "interview_follow_up": interview.FOLLOW_UP_PROMPT,
         },
         seed=settings.blueprint_seed,
         results=results,
         cost=cost,
+        failed=failed,
     )
 
 
@@ -509,8 +574,17 @@ def to_markdown(report: Report) -> str:
             f"{r.unflagged_hard_misses} | {r.flagged_entries} of {len(r.combined.long)} | "
             f"{accuracy:.2f} ({r.claims_supported}/{r.claims_made}) | {_mean(r.long_overlap)} | "
             f"{sum(s['input_identical'] for s in swaps)}/{len(swaps)} / "
-            f"{max((s['difference'] for s in swaps), default=0)} |"
+            f"{max((s['difference'] for s in swaps if s['difference'] is not None), default='n/a')}"
+            + (
+                f" ({sum('error' in s for s in swaps)} failed)"
+                if any("error" in s for s in swaps)
+                else ""
+            )
+            + " |"
         )
+    if report.failed:
+        lines += ["", "Not completed:", ""]
+        lines += [f"- {f['scenario']}: {f['reason']}" for f in report.failed]
     lines += [
         "",
         "## Facts only, model only, combined",
@@ -528,6 +602,25 @@ def to_markdown(report: Report) -> str:
                 for q in (r.facts_only, r.model_only, r.combined)
             )
             + " |"
+        )
+    lines += [
+        "",
+        "## Interview questions",
+        "",
+        "From the short list of the last screening run. A dropped question named a source that was not offered; a flagged one may touch a protected attribute and needs review.",
+        "",
+        "| Vacancy | Question sets | Questions | Dropped | Flagged | Reference codes in the text |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    for r in report.results:
+        q = r.interview
+        lines.append(
+            f"| {r.scenario['title']} | "
+            + (
+                f"{q.sets} | {q.questions} | {q.dropped} | {q.flagged} | {q.reference_codes} |"
+                if q
+                else "not made | | | | |"
+            )
         )
     lines += ["", "## Per vacancy", ""]
     for r in report.results:
@@ -568,6 +661,7 @@ def to_markdown(report: Report) -> str:
         "- **Unflagged hard misses** must be 0: nobody may be listed with a missed hard requirement unless it is flagged.",
         "- **Evidence accuracy**: the share of the model's claims about keywords and years that the CV supports. The rest was removed or corrected before anyone saw it.",
         "- **Name swap**: the same CV with the candidate's name written into it, assessed under two different names. Blind screening should make the model's input identical; a score difference is then the model's own variation.",
+        "- **Interview questions**: the links and flags are checked in code; whether a question is good is not. The name swap is not run for follow-up questions: they are written from the same anonymised CV as the assessment.",
         "- The candidates are synthetic and easier than real CVs: a CV never names a skill its owner lacks. These figures are an upper bound.",
         "",
     ]

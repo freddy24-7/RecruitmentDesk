@@ -227,3 +227,68 @@ async def test_a_cookie_for_a_deleted_workspace_is_not_a_session(
     await db.commit()
 
     assert (await client.get("/api/session")).status_code == 401
+
+
+# --- Per-IP limit on new sessions ---------------------------------------------
+
+
+async def test_one_address_may_start_five_sessions_per_hour(
+    client_for: ClientFor, add_code: AddCode, uses_of: UsesOf, db: AsyncSession
+) -> None:
+    await add_code(VALID_CODE, label="c01")
+    # A fresh client each time: a new visitor, without a session cookie.
+    started = [
+        await client_for("203.0.113.50").post("/api/session", json={"code": VALID_CODE})
+        for _ in range(5)
+    ]
+
+    refused = await client_for("203.0.113.50").post(
+        "/api/session", json={"code": VALID_CODE}
+    )
+    elsewhere = await client_for("203.0.113.51").post(
+        "/api/session", json={"code": VALID_CODE}
+    )
+
+    assert [r.status_code for r in started] == [200] * 5
+    assert refused.status_code == 429
+    assert refused.json()["error"] == "too_many_sessions"
+    assert refused.headers["Retry-After"] == "3600"
+    assert COOKIE_NAME not in refused.cookies
+    assert elsewhere.status_code == 200
+    # The refused request did not use up a redemption.
+    assert await uses_of("c01") == 6
+    # Only a keyed hash of the address is stored.
+    hashes = (await db.scalars(select(Workspace.ip_hash))).all()
+    assert all(h and "203.0.113" not in h for h in hashes)
+
+
+async def test_sessions_older_than_an_hour_do_not_count(
+    client_for: ClientFor, add_code: AddCode, db: AsyncSession
+) -> None:
+    await add_code(VALID_CODE, label="c01")
+    for _ in range(5):
+        await client_for("203.0.113.50").post("/api/session", json={"code": VALID_CODE})
+    await db.execute(
+        update(Workspace).values(created_at=datetime.now(UTC) - timedelta(minutes=61))
+    )
+    await db.commit()
+
+    again = await client_for("203.0.113.50").post(
+        "/api/session", json={"code": VALID_CODE}
+    )
+
+    assert again.status_code == 200
+
+
+async def test_simultaneous_requests_from_one_address_cannot_pass_the_limit(
+    client_for: ClientFor, add_code: AddCode, db: AsyncSession
+) -> None:
+    await add_code(VALID_CODE, label="c01")
+    clients = [client_for("203.0.113.50") for _ in range(12)]
+
+    responses = await asyncio.gather(
+        *(c.post("/api/session", json={"code": VALID_CODE}) for c in clients)
+    )
+
+    assert sorted(r.status_code for r in responses) == [200] * 5 + [429] * 7
+    assert await db.scalar(select(func.count()).select_from(Workspace)) == 5

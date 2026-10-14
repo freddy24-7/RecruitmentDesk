@@ -1,0 +1,575 @@
+{
+ "services": "mistral",
+ "started_at": "2026-10-14T13:37:11+00:00",
+ "models": {
+  "vacancy": "mistral-small-2603",
+  "profile": "mistral-medium-2604",
+  "cv": "mistral-small-2603",
+  "script": "mistral-medium-2604",
+  "assessment": "mistral-small-2603",
+  "interview": "mistral-small-2603"
+ },
+ "prompts": {
+  "assessment": "assessment_v2",
+  "interview_core": "interview_core_v2",
+  "interview_follow_up": "interview_follow_up_v2"
+ },
+ "seed": 20261013,
+ "results": [
+  {
+   "scenario": {
+    "sector": "IT and software",
+    "title": "Cloud Engineer",
+    "seniority": [
+     "senior"
+    ],
+    "work_mode": [
+     "hybrid"
+    ]
+   },
+   "candidates": 20,
+   "categories": {
+    "adjacent": 6,
+    "partial": 7,
+    "strong": 3,
+    "weak": 4
+   },
+   "long_size": 6,
+   "short_size": 2,
+   "combined": {
+    "short_precision": 1.0,
+    "long_recall": 1.0,
+    "short": [
+     "strong",
+     "strong"
+    ],
+    "long": [
+     "strong",
+     "strong",
+     "strong",
+     "partial",
+     "partial",
+     "partial"
+    ]
+   },
+   "facts_only": {
+    "short_precision": 1.0,
+    "long_recall": 1.0,
+    "short": [
+     "strong",
+     "strong"
+    ],
+    "long": [
+     "strong",
+     "strong",
+     "strong",
+     "partial",
+     "partial",
+     "partial"
+    ]
+   },
+   "model_only": {
+    "short_precision": 1.0,
+    "long_recall": 1.0,
+    "short": [
+     "strong",
+     "strong"
+    ],
+    "long": [
+     "strong",
+     "strong",
+     "strong",
+     "partial",
+     "partial",
+     "partial"
+    ]
+   },
+   "unflagged_hard_misses": 0,
+   "flagged_entries": 6,
+   "claims_made": 168,
+   "claims_supported": 77,
+   "long_overlap": [
+    1.0,
+    1.0
+   ],
+   "short_overlap": [
+    1.0,
+    1.0
+   ],
+   "name_swap": [
+    {
+     "input_identical": true,
+     "names_in_input": false,
+     "scores": [
+      95,
+      95
+     ],
+     "difference": 0
+    },
+    {
+     "input_identical": true,
+     "names_in_input": false,
+     "scores": [
+      95,
+      95
+     ],
+     "difference": 0
+    }
+   ],
+   "vacancy_rubric": {
+    "all_sections_filled": true,
+    "no_flagged_wording": true,
+    "title_matches": true,
+    "work_mode_mentioned": true,
+    "seniority_mentioned": true
+   },
+   "script_items": [
+    "hard: AWS | Azure | GCP (5y)",
+    "hard: EC2 | S3 | Lambda | VPC (5y)",
+    "hard: Terraform | CloudFormation | Pulumi (3y)",
+    "hard: Docker | Kubernetes (2y)",
+    "hard: Python | Bash | PowerShell (0y)",
+    "hard: ISO 27001 | SOC 2 (0y)",
+    "hard: Prometheus | Grafana | ELK Stack | Azure Monitor (0y)",
+    "soft: AWS Certified Solutions Architect \u2013 Professional | Microsoft Certified: Azure Solutions Architect Expert | Google Professional Cloud Architect (0y)",
+    "soft: AWS Lambda | Azure Functions (0y)",
+    "soft: Istio | Linkerd (0y)"
+   ],
+   "interview": {
+    "sets": 3,
+    "questions": 17,
+    "dropped": 0,
+    "flagged": 0,
+    "reference_codes": 0
+   },
+   "errors": []
+  },
+  {
+   "scenario": {
+    "sector": "Finance",
+    "title": "Financial Controller",
+    "seniority": [
+     "medior"
+    ],
+    "work_mode": [
+     "office-based"
+    ]
+   },
+   "candidates": 18,
+   "categories": {
+    "adjacent": 5,
+    "partial": 7,
+    "strong": 3,
+    "weak": 3
+   },
+   "long_size": 5,
+   "short_size": 2,
+   "combined": {
+    "short_precision": 1.0,
+    "long_recall": 1.0,
+    "short": [
+     "strong",
+     "strong"
+    ],
+    "long": [
+     "strong",
+     "strong",
+     "strong",
+     "partial",
+     "partial"
+    ]
+   },
+   "facts_only": {
+    "short_precision": 1.0,
+    "long_recall": 1.0,
+    "short": [
+     "strong",
+     "strong"
+    ],
+    "long": [
+     "strong",
+     "strong",
+     "strong",
+     "partial",
+     "partial"
+    ]
+   },
+   "model_only": {
+    "short_precision": 1.0,
+    "long_recall": 1.0,
+    "short": [
+     "strong",
+     "strong"
+    ],
+    "long": [
+     "strong",
+     "strong",
+     "strong",
+     "partial",
+     "partial"
+    ]
+   },
+   "unflagged_hard_misses": 0,
+   "flagged_entries": 1,
+   "claims_made": 151,
+   "claims_supported": 104,
+   "long_overlap": [
+    1.0,
+    1.0
+   ],
+   "short_overlap": [
+    1.0,
+    1.0
+   ],
+   "name_swap": [
+    {
+     "input_identical": true,
+     "names_in_input": false,
+     "scores": [
+      95,
+      95
+     ],
+     "difference": 0
+    },
+    {
+     "input_identical": true,
+     "names_in_input": false,
+     "scores": [
+      90,
+      90
+     ],
+     "difference": 0
+    }
+   ],
+   "vacancy_rubric": {
+    "all_sections_filled": true,
+    "no_flagged_wording": true,
+    "title_matches": true,
+    "work_mode_mentioned": true,
+    "seniority_mentioned": false
+   },
+   "script_items": [
+    "soft: Dutch GAAP | IFRS (0y)",
+    "hard: SAP | Oracle | Microsoft Dynamics (0y)",
+    "hard: Excel (0y)",
+    "hard: Dutch | EU financial regulations | tax laws (0y)",
+    "hard: English (0y)",
+    "soft: Dutch (0y)",
+    "soft: RA | CPA (0y)",
+    "soft: Power BI | Tableau (0y)",
+    "soft: FinTech | SaaS (0y)"
+   ],
+   "interview": {
+    "sets": 3,
+    "questions": 18,
+    "dropped": 0,
+    "flagged": 0,
+    "reference_codes": 0
+   },
+   "errors": [
+    "candidates: llm_timeout"
+   ]
+  },
+  {
+   "scenario": {
+    "sector": "Healthcare",
+    "title": "District Nurse",
+    "seniority": [
+     "medior"
+    ],
+    "work_mode": [
+     "office-based"
+    ]
+   },
+   "candidates": 19,
+   "categories": {
+    "adjacent": 6,
+    "partial": 7,
+    "strong": 2,
+    "weak": 4
+   },
+   "long_size": 6,
+   "short_size": 2,
+   "combined": {
+    "short_precision": 1.0,
+    "long_recall": 1.0,
+    "short": [
+     "strong",
+     "strong"
+    ],
+    "long": [
+     "strong",
+     "strong",
+     "partial",
+     "partial",
+     "partial",
+     "partial"
+    ]
+   },
+   "facts_only": {
+    "short_precision": 1.0,
+    "long_recall": 1.0,
+    "short": [
+     "strong",
+     "strong"
+    ],
+    "long": [
+     "strong",
+     "strong",
+     "partial",
+     "partial",
+     "partial",
+     "partial"
+    ]
+   },
+   "model_only": {
+    "short_precision": 1.0,
+    "long_recall": 1.0,
+    "short": [
+     "strong",
+     "strong"
+    ],
+    "long": [
+     "strong",
+     "strong",
+     "partial",
+     "partial",
+     "partial",
+     "partial"
+    ]
+   },
+   "unflagged_hard_misses": 0,
+   "flagged_entries": 6,
+   "claims_made": 130,
+   "claims_supported": 92,
+   "long_overlap": [
+    1.0,
+    1.0
+   ],
+   "short_overlap": [
+    1.0,
+    1.0
+   ],
+   "name_swap": [
+    {
+     "input_identical": true,
+     "names_in_input": false,
+     "scores": [
+      95,
+      95
+     ],
+     "difference": 0
+    },
+    {
+     "input_identical": true,
+     "names_in_input": false,
+     "scores": [
+      90,
+      90
+     ],
+     "difference": 0
+    }
+   ],
+   "vacancy_rubric": {
+    "all_sections_filled": true,
+    "no_flagged_wording": true,
+    "title_matches": true,
+    "work_mode_mentioned": true,
+    "seniority_mentioned": false
+   },
+   "script_items": [
+    "hard: BIG-registratie (0y)",
+    "hard: community nursing | district nursing (3y)",
+    "hard: electronic health record systems | nursing documentation software (0y)",
+    "hard: Dutch (0y)",
+    "hard: English (0y)",
+    "hard: Dutch healthcare regulations | Dutch healthcare standards (0y)",
+    "soft: geriatric care | palliative care (0y)",
+    "soft: IV therapy | diabetes management (0y)",
+    "soft: Dutch healthcare insurance systems | reimbursement processes (0y)"
+   ],
+   "interview": {
+    "sets": 3,
+    "questions": 17,
+    "dropped": 0,
+    "flagged": 0,
+    "reference_codes": 0
+   },
+   "errors": [
+    "candidates: llm_invalid_output"
+   ]
+  },
+  {
+   "scenario": {
+    "sector": "Logistics",
+    "title": "Supply Chain Planner",
+    "seniority": [
+     "senior"
+    ],
+    "work_mode": [
+     "hybrid"
+    ]
+   },
+   "candidates": 18,
+   "categories": {
+    "adjacent": 5,
+    "partial": 7,
+    "strong": 2,
+    "weak": 4
+   },
+   "long_size": 5,
+   "short_size": 2,
+   "combined": {
+    "short_precision": 1.0,
+    "long_recall": 1.0,
+    "short": [
+     "strong",
+     "strong"
+    ],
+    "long": [
+     "strong",
+     "strong",
+     "partial",
+     "partial",
+     "partial"
+    ]
+   },
+   "facts_only": {
+    "short_precision": 1.0,
+    "long_recall": 1.0,
+    "short": [
+     "strong",
+     "strong"
+    ],
+    "long": [
+     "strong",
+     "strong",
+     "partial",
+     "partial",
+     "partial"
+    ]
+   },
+   "model_only": {
+    "short_precision": 1.0,
+    "long_recall": 1.0,
+    "short": [
+     "strong",
+     "strong"
+    ],
+    "long": [
+     "strong",
+     "strong",
+     "partial",
+     "partial",
+     "partial"
+    ]
+   },
+   "unflagged_hard_misses": 0,
+   "flagged_entries": 3,
+   "claims_made": 135,
+   "claims_supported": 99,
+   "long_overlap": [
+    1.0,
+    1.0
+   ],
+   "short_overlap": [
+    1.0,
+    1.0
+   ],
+   "name_swap": [
+    {
+     "input_identical": true,
+     "names_in_input": false,
+     "scores": [
+      95,
+      95
+     ],
+     "difference": 0
+    },
+    {
+     "input_identical": true,
+     "names_in_input": false,
+     "scores": [
+      90,
+      90
+     ],
+     "difference": 0
+    }
+   ],
+   "vacancy_rubric": {
+    "all_sections_filled": true,
+    "no_flagged_wording": true,
+    "title_matches": true,
+    "work_mode_mentioned": true,
+    "seniority_mentioned": true
+   },
+   "script_items": [
+    "hard: SAP IBP | Oracle SCM | Kinaxis RapidResponse (0y)",
+    "hard: Excel | SQL | Python (0y)",
+    "soft: CSCP | CPIM | APICS (0y)",
+    "hard: English (0y)",
+    "hard: Agile (0y)",
+    "soft: APS (0y)",
+    "hard: ERP (0y)",
+    "soft: Lean manufacturing | Six Sigma (0y)",
+    "soft: AI-driven demand planning tools (0y)",
+    "hard: Supply Chain Management | Logistics | Industrial Engineering (0y)"
+   ],
+   "interview": {
+    "sets": 3,
+    "questions": 18,
+    "dropped": 0,
+    "flagged": 0,
+    "reference_codes": 0
+   },
+   "errors": [
+    "candidates: llm_timeout"
+   ]
+  }
+ ],
+ "cost": {
+  "vacancy": {
+   "calls": 4,
+   "invalid": 0,
+   "cost": 0.00195,
+   "avg_latency_ms": 8674
+  },
+  "vacancy_profile": {
+   "calls": 4,
+   "invalid": 0,
+   "cost": 0.0223,
+   "avg_latency_ms": 3532
+  },
+  "cv": {
+   "calls": 84,
+   "invalid": 9,
+   "cost": 0.02624,
+   "avg_latency_ms": 3466
+  },
+  "script": {
+   "calls": 4,
+   "invalid": 0,
+   "cost": 0.02111,
+   "avg_latency_ms": 2834
+  },
+  "assessment": {
+   "calls": 132,
+   "invalid": 0,
+   "cost": 0.0706,
+   "avg_latency_ms": 3729
+  },
+  "interview": {
+   "calls": 12,
+   "invalid": 0,
+   "cost": 0.00498,
+   "avg_latency_ms": 3116
+  },
+  "evaluation_name_swap": {
+   "calls": 16,
+   "invalid": 0,
+   "cost": 0.00879,
+   "avg_latency_ms": 3667
+  }
+ },
+ "failed": []
+}

@@ -18,11 +18,11 @@ Built in ten stages (PRD section 13). Done so far:
 - **Stage 5, selection script:** the model proposes screening criteria from the vacancy text: keywords (with alternatives), years, hard or soft, and the sentence each one is based on. Code checks that sentence is really in the vacancy. The recruiter edits and submits. Hard and soft requirements are applied in one function.
 - **Stage 6, long list and short list:** one screening run produces both. Code finds each script keyword in the anonymised CV, computes years from the dated jobs and applies hard and soft requirements. The model assesses the strongest candidates. Code checks its claims against the CV and removes what is not supported. Names and contact details are joined back only for display. Compared on real pools with the small and the medium model.
 - **Stage 7, interview questions:** from the short list, core questions for every candidate and follow-ups per candidate. Each question names the script item, strength or concern it is based on, and code checks that link. Questions that may touch a protected attribute are flagged. Checked on two real pools.
-- **Stage 8, evaluation and hardening:** `scripts/evaluate_lists.py` measures the lists against the planted ground truth (precision, recall, evidence accuracy, consistency over repeated runs, a name-swap fairness check, and the ranking with facts only, model only and both). A daily spend cap switches generation off when the day's budget is used, idle workspaces are deleted on a timer, "Reset demo" empties a workspace, and large requests are refused. The evaluation has run with the fake model only so far.
+- **Stage 8, evaluation and hardening:** `scripts/evaluate_lists.py` measures the lists against the planted ground truth (precision, recall, evidence accuracy, consistency over repeated runs, a name-swap fairness check, the ranking with facts only, model only and both, and the interview questions: dropped, flagged and reference codes left in the text). A daily spend cap switches generation off when the day's budget is used, one IP address may start at most 5 sessions an hour, idle workspaces are deleted on a timer, "Reset demo" empties a workspace, and large requests are refused. The evaluation ran once against the real API: see below.
 
 ### What has run against the real Mistral API
 
-On 2026-10-13 and 14, about 320 calls in total:
+On 2026-10-13 and 14, about 780 calls in total:
 
 - six calls through `uv run pytest -m mistral tests/real -s` (one vacancy, one vacancy profile, four CVs);
 - two runs of one vacancy and 20 candidates through the app's job pipeline. The first exposed three design faults and produced 16 of 20 candidates. After the fixes, the second produced 20 of 20, every CV usable on the first answer, in 19.5 seconds, for an estimated $0.0075;
@@ -32,7 +32,9 @@ On 2026-10-13 and 14, about 320 calls in total:
 
 - interview questions on two more fresh pools: every question usable, none dropped, none flagged; a false concern about a missing alternative was found and fixed in the evidence check.
 
-Total estimated spend: about 26 cents. Every automated test, including the browser tests, uses the fake model. Details and the measured figures are in [cards/04-candidates.md](cards/04-candidates.md), [cards/05-selection-script.md](cards/05-selection-script.md), [cards/06-long-list-and-short-list.md](cards/06-long-list-and-short-list.md) and [cards/07-interview-questions.md](cards/07-interview-questions.md).
+- the evaluation (stage 8), four vacancies of 20 candidates, three screening runs each: 256 calls, $0.156. Short-list precision and long-list recall were 1.00 for all four, with facts only, model only and both; 0 unflagged hard misses; identical lists over repeated runs. Between 27% and 54% of the model's claims about keywords and years were not supported and were removed. Three of four pools lost one or two CVs to timeouts or invalid answers. A first attempt stopped after 206 calls ($0.12) on a timeout and was fixed. Report: [reports/evaluation-20261014-1346-mistral.md](reports/evaluation-20261014-1346-mistral.md).
+
+Total estimated spend: about 54 cents. Every automated test, including the browser tests, uses the fake model. Details and the measured figures are in [cards/04-candidates.md](cards/04-candidates.md), [cards/05-selection-script.md](cards/05-selection-script.md), [cards/06-long-list-and-short-list.md](cards/06-long-list-and-short-list.md), [cards/07-interview-questions.md](cards/07-interview-questions.md) and [cards/08-evaluation-and-hardening.md](cards/08-evaluation-and-hardening.md).
 
 ## Run it locally
 
