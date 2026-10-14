@@ -4,6 +4,7 @@ import { startScreening } from './api.ts'
 import type { Vacancy } from './api.ts'
 import CandidatesPage from './CandidatesPage.tsx'
 import CandidateView from './CandidateView.tsx'
+import InterviewPage from './InterviewPage.tsx'
 import ListEntryView from './ListEntryView.tsx'
 import ListsPage from './ListsPage.tsx'
 import type { WhichList } from './lists.ts'
@@ -25,6 +26,7 @@ type View =
   | { name: 'candidates'; vacancyId: string }
   | { name: 'candidate'; vacancyId: string; candidateId: string }
   | { name: 'lists'; vacancyId: string; which: WhichList }
+  | { name: 'interview'; vacancyId: string }
   | {
       name: 'list-entry'
       vacancyId: string
@@ -53,6 +55,13 @@ function StatusChips({ vacancy }: { vacancy: Vacancy }) {
   }
   if (vacancy.lists.exist) {
     chips.push(vacancy.lists.out_of_date ? 'lists out of date' : 'long list ready')
+  }
+  if (vacancy.interview.exist) {
+    chips.push(
+      vacancy.interview.out_of_date
+        ? 'interview questions out of date'
+        : 'interview questions ready',
+    )
   }
   if (chips.length === 0) {
     return null
@@ -91,6 +100,7 @@ function Workspace() {
     view.name === 'candidates' ||
     view.name === 'candidate' ||
     view.name === 'lists' ||
+    view.name === 'interview' ||
     view.name === 'list-entry'
       ? all.find((vacancy) => vacancy.id === view.vacancyId)
       : undefined
@@ -236,6 +246,7 @@ function Workspace() {
             onSwitch={(which) =>
               setView({ name: 'lists', vacancyId: opened.id, which })
             }
+            onInterview={() => setView({ name: 'interview', vacancyId: opened.id })}
             onOpen={(candidateId) =>
               setView({
                 name: 'list-entry',
@@ -243,6 +254,15 @@ function Workspace() {
                 which: view.which,
                 candidateId,
               })
+            }
+          />
+        )}
+
+        {vacancies.isSuccess && view.name === 'interview' && opened && (
+          <InterviewPage
+            vacancy={opened}
+            onBack={() =>
+              setView({ name: 'lists', vacancyId: opened.id, which: 'short' })
             }
           />
         )}

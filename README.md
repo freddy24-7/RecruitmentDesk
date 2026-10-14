@@ -17,6 +17,7 @@ Built in ten stages (PRD section 13). Done so far:
 - **Stage 4, candidates:** 1 to 100 fictional candidates per vacancy. Code samples who each candidate is (with a known match category, as ground truth) and builds their dated job history; the model writes the CV prose. A searchable, sortable candidate page with a CV view. Tested with a fake model only.
 - **Stage 5, selection script:** the model proposes screening criteria from the vacancy text: keywords (with alternatives), years, hard or soft, and the sentence each one is based on. Code checks that sentence is really in the vacancy. The recruiter edits and submits. Hard and soft requirements are applied in one function.
 - **Stage 6, long list and short list:** one screening run produces both. Code finds each script keyword in the anonymised CV, computes years from the dated jobs and applies hard and soft requirements. The model assesses the strongest candidates. Code checks its claims against the CV and removes what is not supported. Names and contact details are joined back only for display. Compared on real pools with the small and the medium model.
+- **Stage 7, interview questions:** from the short list, core questions for every candidate and follow-ups per candidate. Each question names the script item, strength or concern it is based on, and code checks that link. Questions that may touch a protected attribute are flagged. Not yet run against the real model.
 
 ### What has run against the real Mistral API
 

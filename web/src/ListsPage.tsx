@@ -11,6 +11,7 @@ type Props = {
   which: WhichList
   start: StartScreening
   onBack: () => void
+  onInterview: () => void
   onSwitch: (which: WhichList) => void
   onOpen: (candidateId: string) => void
 }
@@ -62,7 +63,15 @@ function Entry({ entry, onOpen }: { entry: ListEntry; onOpen: () => void }) {
 }
 
 /** The long list or the short list of one vacancy (PRD F6, F7). */
-function ListsPage({ vacancy, which, start, onBack, onSwitch, onOpen }: Props) {
+function ListsPage({
+  vacancy,
+  which,
+  start,
+  onBack,
+  onSwitch,
+  onOpen,
+  onInterview,
+}: Props) {
   const lists = useLists(vacancy)
   const retry = useRetryJob()
   const [confirming, setConfirming] = useState(false)
@@ -188,6 +197,15 @@ function ListsPage({ vacancy, which, start, onBack, onSwitch, onOpen }: Props) {
                 ))}
               </ol>
             </>
+          )}
+          {which === 'short' && lists.isSuccess && (
+            <p>
+              <button type="button" className="primary" onClick={onInterview}>
+                {vacancy.interview.exist
+                  ? 'View interview questions'
+                  : 'Generate interview questions'}
+              </button>
+            </p>
           )}
           <p>
             <button

@@ -16,6 +16,7 @@ VACANCY_GENERATION = "vacancy_generation"
 CANDIDATE_GENERATION = "candidate_generation"
 SCRIPT_PROPOSAL = "script_proposal"
 SCREENING = "screening"
+INTERVIEW_QUESTIONS = "interview_questions"
 # A failing job cannot be retried for ever: each try can cost model calls.
 MAX_ATTEMPTS_PER_JOB = 3
 
@@ -119,6 +120,24 @@ async def check_can_screen(
         raise LimitReached(
             "limit_reached",
             f"This demo workspace has used all {limit} screening runs.",
+        )
+
+
+async def check_can_make_interview_questions(
+    session: AsyncSession, workspace_id: uuid.UUID, settings: Settings
+) -> None:
+    """Raise LimitReached if this workspace may not make interview questions again."""
+    await check_no_job_running(session, workspace_id)
+    starts = await session.scalar(
+        select(func.coalesce(func.sum(Job.attempts), 0)).where(
+            Job.workspace_id == workspace_id, Job.type == INTERVIEW_QUESTIONS
+        )
+    )
+    limit = settings.max_interview_runs_per_workspace
+    if (starts or 0) >= limit:
+        raise LimitReached(
+            "limit_reached",
+            f"This demo workspace has used all {limit} interview question runs.",
         )
 
 

@@ -371,3 +371,48 @@ def test_generate_the_lists_and_read_the_evidence(page: Page, app_url: str) -> N
     page.get_by_role("button", name="Back to vacancy").click()
     expect(page.get_by_role("button", name="View long list (3)")).to_be_visible()
     expect(page.get_by_role("button", name="View short list (1)")).to_be_visible()
+
+
+def test_interview_questions_for_the_short_list(page: Page, app_url: str) -> None:
+    submitted_vacancy(page, app_url)
+    page.get_by_role("button", name="Generate candidates").click()
+    dialog = page.get_by_role("dialog", name="Generate candidates")
+    dialog.get_by_label("Number of candidates").fill("10")
+    dialog.get_by_role("button", name="Generate", exact=True).click()
+    expect(dialog.get_by_role("button", name="View candidates (10)")).to_be_visible(
+        timeout=40_000
+    )
+    page.keyboard.press("Escape")
+    page.get_by_role("button", name="Generate selection script").click()
+    script = page.get_by_role("dialog", name="Selection script")
+    expect(script.get_by_role("group", name="Item 1")).to_be_visible(timeout=15_000)
+    script.get_by_role("button", name="Submit").click()
+    page.get_by_role("button", name="Generate short-list").click()
+    expect(page.get_by_role("heading", level=3)).to_have_count(1, timeout=40_000)
+
+    page.get_by_role("button", name="Generate interview questions").click()
+    expect(
+        page.get_by_role("heading", name="Interview questions for Cloud Engineer")
+    ).to_be_visible()
+    expect(
+        page.get_by_text("Suggestions to support a recruiter. A person decides.")
+    ).to_be_visible()
+    page.get_by_role("button", name="Generate interview questions").click()
+
+    core = page.get_by_role("region", name="Core questions, for every candidate")
+    expect(core).to_be_visible(timeout=30_000)
+    # Every core question shows the script item it is based on.
+    expect(core.get_by_text(re.compile(r"^Selection script: ")).first).to_be_visible()
+    follow_up = page.get_by_role("region", name=re.compile("^Follow-up questions for "))
+    expect(follow_up).to_have_count(1)
+
+    # Edit a question and save it.
+    core.get_by_role("button", name="Edit questions").click()
+    core.get_by_label("Question", exact=True).first.fill(
+        "Walk me through a cloud platform you designed."
+    )
+    core.get_by_role("button", name="Save questions").click()
+    expect(
+        core.get_by_text("Walk me through a cloud platform you designed.")
+    ).to_be_visible()
+    expect(core.get_by_role("button", name="Reset to generated")).to_be_enabled()

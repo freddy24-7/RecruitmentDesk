@@ -92,6 +92,9 @@ export type Vacancy = {
   candidate_job: Job | null
   script_job: Job | null
   screening_job: Job | null
+  /** Interview questions: whether they exist, are current, or why not possible. */
+  interview: { exist: boolean; out_of_date: boolean; reason: string | null }
+  interview_job: Job | null
   job: Job | null
 }
 
@@ -212,6 +215,35 @@ export type ListEntryDetail = ListEntry & {
     years: number
     snippets: { where: string; text: string }[]
   }[]
+}
+
+export type InterviewQuestion = {
+  question: string
+  purpose: string
+  /** A reference into the set's sources, or '' for the recruiter's own. */
+  source: string
+  source_kind: string
+  source_text: string
+  /** Terms a check in code found that may touch a protected attribute. */
+  flags: string[]
+}
+
+export type QuestionSet = {
+  id: string
+  candidate_id: string | null
+  candidate_name: string | null
+  list_position: number | null
+  questions: InterviewQuestion[]
+  edited: boolean
+  dropped: { kind: string; detail: string }[]
+}
+
+export type Interview = {
+  notice: string
+  vacancy_title: string
+  out_of_date: boolean
+  core: QuestionSet | null
+  follow_ups: QuestionSet[]
 }
 
 type ErrorBody = {
@@ -390,5 +422,31 @@ export function getListEntry(
   return request<ListEntryDetail>(
     'GET',
     `/api/vacancies/${vacancyId}/lists/${candidateId}`,
+  )
+}
+
+/** Start making interview questions. `replace` only after the user confirmed. */
+export function startInterview(vacancyId: string, replace: boolean): Promise<Job> {
+  return request<Job>('POST', `/api/vacancies/${vacancyId}/interview`, { replace })
+}
+
+export function getInterview(vacancyId: string): Promise<Interview> {
+  return request<Interview>('GET', `/api/vacancies/${vacancyId}/interview`)
+}
+
+export function saveQuestions(
+  vacancyId: string,
+  setId: string,
+  questions: InterviewQuestion[],
+): Promise<QuestionSet> {
+  return request<QuestionSet>('PUT', `/api/vacancies/${vacancyId}/interview/${setId}`, {
+    questions,
+  })
+}
+
+export function resetQuestions(vacancyId: string, setId: string): Promise<QuestionSet> {
+  return request<QuestionSet>(
+    'POST',
+    `/api/vacancies/${vacancyId}/interview/${setId}/reset`,
   )
 }

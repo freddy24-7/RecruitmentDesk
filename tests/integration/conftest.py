@@ -48,7 +48,8 @@ async def clean_tables(database: None) -> None:
     async with get_sessionmaker()() as session:
         await session.execute(
             text(
-                "TRUNCATE assessment, selection_script, candidate, "
+                "TRUNCATE interview_question_set, assessment, selection_script, "
+                "candidate, "
                 "usage_record, job, "
                 "vacancy, workspace, "
                 "failed_attempt, "

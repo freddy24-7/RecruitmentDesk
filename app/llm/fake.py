@@ -199,12 +199,39 @@ def fake_assessment(request: LlmRequest) -> str:
     )
 
 
+def fake_interview(request: LlmRequest) -> str:
+    """One question per reference the prompt offers, at most five."""
+    refs = [ref for ref in request.variables["fake_refs"].split(",") if ref][:5]
+    return json.dumps(
+        {
+            "questions": [
+                {
+                    "question": (
+                        f"{FAKE_NOTE} Tell me about a time this mattered ({ref})."
+                    ),
+                    "purpose": "Shows real experience with it.",
+                    "source": ref,
+                }
+                for ref in refs
+            ]
+            or [
+                {
+                    "question": f"{FAKE_NOTE} What are you most proud of?",
+                    "purpose": "Shows what the candidate values.",
+                    "source": "S1",
+                }
+            ]
+        }
+    )
+
+
 DEFAULT_RESPONDERS: dict[str, Responder] = {
     "vacancy": fake_vacancy,
     "vacancy_profile": fake_vacancy_profile,
     "cv": fake_cv,
     "script": fake_script,
     "assessment": fake_assessment,
+    "interview": fake_interview,
 }
 
 

@@ -2,7 +2,8 @@
 
 "Cancel vacancy" deletes the vacancy and everything that belongs to it.
 Replacing candidates deletes the old ones, and a new screening run deletes
-the old lists. No other module deletes rows; a
+the old lists, and new interview questions the old ones. No other module
+deletes rows; a
 test checks that. Every function here needs an explicit confirmation, which
 the UI only sends after its confirmation dialog.
 """
@@ -13,6 +14,7 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.candidates.models import Candidate
+from app.interview.models import QuestionSet
 from app.screening.models import Assessment
 from app.vacancy.models import Vacancy
 
@@ -60,3 +62,17 @@ async def delete_assessments(
     if not confirmed:
         raise ConfirmationRequired
     await session.execute(delete(Assessment).where(Assessment.vacancy_id == vacancy_id))
+
+
+async def delete_question_sets(
+    session: AsyncSession, vacancy_id: uuid.UUID, *, confirmed: bool
+) -> None:
+    """Delete the interview questions of a vacancy, before new ones replace them.
+
+    The caller commits.
+    """
+    if not confirmed:
+        raise ConfirmationRequired
+    await session.execute(
+        delete(QuestionSet).where(QuestionSet.vacancy_id == vacancy_id)
+    )

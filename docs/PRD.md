@@ -182,6 +182,8 @@ An add-on for the step after screening. It lives on the short-list page, because
 - **Stale data.** If the vacancy, the script or the lists change, the questions are marked out of date. Regenerating replaces them, with a confirmation dialog.
 - **Limits.** The job costs at most 1 + 4 model calls (the short list has at most 4 entries). It counts towards the per-workspace limits and the usage records.
 - The notice from F7 also applies here: "Suggestions to support a recruiter. A person decides."
+- **How the links work:** the model gets numbered references (S1 for a script item, P1 for a strength, C1 for a concern) and names one per question. Code drops a question whose reference was not offered, and reports how many were dropped. After an edit, the server looks each source up again.
+- **Generating again** replaces all questions, including edits, after a confirmation. Regenerating candidates deletes their follow-up questions.
 - Optional: print or export the questions per candidate.
 
 ## 7. Responsible-AI design (my additions)

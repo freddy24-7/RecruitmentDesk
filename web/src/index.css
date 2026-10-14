@@ -492,3 +492,25 @@ ol.cards {
   background: var(--warn-bg);
   font-size: 0.9rem;
 }
+
+/* Interview questions */
+
+.questions {
+  padding-left: 1.4rem;
+}
+
+.questions > li {
+  margin-bottom: 0.9rem;
+}
+
+.question {
+  margin: 0 0 0.2rem;
+  font-weight: 600;
+}
+
+.questions fieldset {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}

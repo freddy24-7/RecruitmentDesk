@@ -15,11 +15,14 @@ from app.candidates import service as candidate_service
 from app.candidates.models import Candidate
 from app.config import Settings, get_settings
 from app.db import get_session
+from app.interview import service as interview_service
+from app.interview.models import QuestionSet
 from app.jobs.messages import message_for
 from app.jobs.models import ACTIVE, Job
 from app.jobs.runner import JobRunner
 from app.limits.workspace import (
     CANDIDATE_GENERATION,
+    INTERVIEW_QUESTIONS,
     SCREENING,
     SCRIPT_PROPOSAL,
     LimitReached,
@@ -102,6 +105,15 @@ class ListsStateOut(BaseModel):
     short_size: int
 
 
+class InterviewStateOut(BaseModel):
+    # Interview questions exist for this vacancy.
+    exist: bool
+    # True when the vacancy, the script or the lists changed since.
+    out_of_date: bool
+    # Why questions cannot be made now, or None if they can.
+    reason: str | None
+
+
 class VacancyOut(BaseModel):
     id: uuid.UUID
     status: str
@@ -122,6 +134,8 @@ class VacancyOut(BaseModel):
     candidate_job: JobOut | None
     script_job: JobOut | None
     screening_job: JobOut | None
+    interview: InterviewStateOut
+    interview_job: JobOut | None
     # The most recent job for this vacancy.
     job: JobOut | None
 
@@ -187,6 +201,16 @@ async def _vacancy_out(session: AsyncSession, vacancy: Vacancy) -> VacancyOut:
     screening_job = await _latest_job(session, vacancy.id, SCREENING)
     inputs = await screening_service.read_inputs(session, vacancy)
     run = await screening_service.latest_run(session, vacancy.id)
+    interview_job = await _latest_job(session, vacancy.id, INTERVIEW_QUESTIONS)
+    basis = await interview_service.current_basis(session, vacancy)
+    question_sets = (
+        await session.scalars(
+            select(QuestionSet).where(QuestionSet.vacancy_id == vacancy.id)
+        )
+    ).all()
+    interview_reason = basis if isinstance(basis, str) else None
+    if interview_reason is None and job_running:
+        interview_reason = "Wait until the running job has finished."
     return VacancyOut(
         id=vacancy.id,
         status=vacancy.status,
@@ -231,6 +255,14 @@ async def _vacancy_out(session: AsyncSession, vacancy: Vacancy) -> VacancyOut:
         ),
         candidate_job=job_out(candidate_job) if candidate_job else None,
         screening_job=job_out(screening_job) if screening_job else None,
+        interview=InterviewStateOut(
+            exist=bool(question_sets),
+            out_of_date=any(
+                interview_service.out_of_date(q, vacancy, basis) for q in question_sets
+            ),
+            reason=interview_reason,
+        ),
+        interview_job=job_out(interview_job) if interview_job else None,
         script_job=job_out(script_job) if script_job else None,
         job=job_out(job) if job else None,
     )
@@ -425,6 +457,8 @@ async def retry_job(
             queued = await script_service.retry_proposal(session, job)
         elif job.type == SCREENING:
             queued = await screening_service.retry_screening(session, job)
+        elif job.type == INTERVIEW_QUESTIONS:
+            queued = await interview_service.retry_questions(session, job)
         else:
             queued = await service.retry_generation(session, job, settings)
     except LimitReached as limit:

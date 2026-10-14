@@ -3,19 +3,29 @@ import {
   cancelVacancy,
   generateCandidates,
   getCandidate,
+  getInterview,
   getListEntry,
   getLists,
   getScript,
   listCandidates,
   listVacancies,
   proposeScript,
+  resetQuestions,
   resetVacancy,
   retryJob,
+  saveQuestions,
   saveScript,
   saveSections,
+  startInterview,
   submitVacancy,
 } from './api.ts'
-import type { Job, ScriptItem, Vacancy, VacancySections } from './api.ts'
+import type {
+  InterviewQuestion,
+  Job,
+  ScriptItem,
+  Vacancy,
+  VacancySections,
+} from './api.ts'
 
 export const VACANCIES_KEY = ['vacancies']
 
@@ -193,5 +203,44 @@ export function useListEntry(vacancyId: string, candidateId: string) {
   return useQuery({
     queryKey: ['list-entry', vacancyId, candidateId],
     queryFn: () => getListEntry(vacancyId, candidateId),
+  })
+}
+
+export function useInterview(vacancy: Vacancy) {
+  return useQuery({
+    queryKey: [
+      'interview',
+      vacancy.id,
+      vacancy.interview_job?.id,
+      vacancy.interview_job?.status,
+      vacancy.interview.out_of_date,
+    ],
+    queryFn: () => getInterview(vacancy.id),
+    enabled: vacancy.interview.exist,
+  })
+}
+
+export function useStartInterview(vacancyId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (replace: boolean) => startInterview(vacancyId, replace),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: VACANCIES_KEY }),
+  })
+}
+
+export function useSaveQuestions(vacancyId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ setId, questions }: { setId: string; questions: InterviewQuestion[] }) =>
+      saveQuestions(vacancyId, setId, questions),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['interview', vacancyId] }),
+  })
+}
+
+export function useResetQuestions(vacancyId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (setId: string) => resetQuestions(vacancyId, setId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['interview', vacancyId] }),
   })
 }
