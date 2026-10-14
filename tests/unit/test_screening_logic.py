@@ -501,3 +501,47 @@ def test_flagged_candidates_come_after_those_who_qualify() -> None:
 
     assert lists.long == ["qualifies", "flagged-one", "flagged-two"]
     assert lists.short == ["qualifies"]
+
+
+def test_a_strength_that_states_wrong_years_is_removed() -> None:
+    """Seen with the real models: "4 years of Terraform" where the CV gives 2.8."""
+    checked = check(
+        assessment(
+            strengths=[
+                {"text": "Has 8 years of Terraform.", "keywords": ["Terraform"]},
+                {"text": "Close to 7 years in cloud roles.", "keywords": ["Azure"]},
+            ]
+        )
+    )
+
+    assert checked.strengths == ["Close to 7 years in cloud roles."]
+    assert [(f.kind, f.detail) for f in checked.flags] == [
+        (STRENGTH_UNSUPPORTED, "8 years")
+    ]
+
+
+def test_a_concern_that_states_wrong_years_is_removed() -> None:
+    checked = check(
+        assessment(concerns=[{"text": "Only 1 year of Terraform.", "keywords": []}])
+    )
+
+    assert checked.concerns == []
+    assert [(f.kind, f.detail) for f in checked.flags] == [
+        (CONCERN_CONTRADICTED, "1 years")
+    ]
+
+
+def test_years_written_as_words_are_checked_too() -> None:
+    checked = check(
+        assessment(
+            strengths=[{"text": "Over twelve years of Azure.", "keywords": ["Azure"]}],
+            reasoning="Seven years of solid cloud work. Fifteen years in total.",
+        )
+    )
+
+    assert checked.strengths == []
+    assert checked.reasoning == "Seven years of solid cloud work."
+    assert [(f.kind, f.detail) for f in checked.flags] == [
+        (STRENGTH_UNSUPPORTED, "12 years"),
+        (SENTENCE_UNSUPPORTED, "15 years"),
+    ]

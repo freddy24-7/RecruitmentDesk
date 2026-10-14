@@ -195,7 +195,7 @@ def test_the_prompt_is_filled_with_the_vacancy_text() -> None:
     prompt = load_prompt(PROMPT)
     user = prompt.render_user(prompt_variables(VACANCY))
 
-    assert prompt.version == "script_v1"
+    assert prompt.version == "script_v2"
     assert "Title: Cloud Engineer" in user
     assert "- Experience with Microsoft Azure" in user
     assert "$" not in user

@@ -1,7 +1,11 @@
 Prompt for proposing a selection script (screening criteria) from a vacancy.
 The recruiter reviews and edits the proposal before it is saved.
-Version: script_v1. Do not edit after results were generated with it: copy it
+Version: script_v2. Do not edit after results were generated with it: copy it
 to a new version.
+
+Changes from v1, after the first real comparison: "and/or" and examples in
+brackets are alternatives. v1 split "AWS and/or Azure" and "(e.g., ISO 27001,
+SOC 2)" into separate hard items, which no candidate could meet together.
 
 ## system
 
@@ -16,12 +20,14 @@ Each item is {"any_of": [...], "min_years": ..., "hard": ..., "reason": ...}:
   "any_of": ["AWS", "Azure", "GCP"]. When it names one thing, "any_of" has one
   keyword. Use at most 4 alternatives.
   Let the vacancy's own wording decide:
-  - "or", "such as", "e.g.", "like", "at least one of", "or similar" mean
+  - "or", "and/or", "such as", "e.g.", "like", "for example", "at least one
+    of", "or similar", and a list of examples in brackets all mean
     alternatives: one item, with all of them in "any_of".
-    "Terraform, Pulumi or AWS CDK" is one item. "A scripting language (e.g.
-    Python, Bash)" is one item.
-  - "and" between two things that are both needed means two items.
-    "Dutch and English" is two items.
+    "Terraform, Pulumi or AWS CDK" is one item. "AWS and/or Azure" is one
+    item. "Compliance frameworks (e.g., ISO 27001, SOC 2)" is one item.
+  - Only a plain "and" between two things that are each required on their
+    own means two items: "Dutch and English" is two items. When in doubt,
+    make one item with alternatives: the recruiter can split it.
 - "min_years": the number of years of experience the vacancy asks for this
   criterion, or 0 if it states no number for it. Do not carry a number over
   from another requirement.

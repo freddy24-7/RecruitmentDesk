@@ -46,13 +46,53 @@ Date: 2026-10-13
 - List sizes checked at 1, 2, 5, 10, 15, 20, 25 and 100 candidates, and the invariants for every size from 1 to 100.
 - The whole flow was run in a browser test: candidates, script, long list, evidence view, short list. The long list and the evidence view were checked by eye.
 
+## The real comparison (2026-10-14)
+
+One real vacancy (senior cloud engineer), 20 real candidates (3 strong, 7 partial, 6 adjacent, 4 weak), a real script proposal saved unedited, then screening. Measured from the usage records and the assessments. Total real spend: about $0.11.
+
+**Small against medium model, same pool, same script (prompts version 1):**
+
+| | `mistral-small-2603` | `mistral-medium-2604` |
+| --- | --- | --- |
+| Assessments | 12, all usable on the first answer | 12, all usable on the first answer |
+| Estimated cost | $0.0064 | $0.0628 (about 10 times) |
+| Average latency | 3.2 s | 2.7 s |
+| Short list | 2 of 2 planted strong matches | 2 of 2 planted strong matches |
+| Long list | the 3 strong matches, then 3 partial | the same 6 candidates |
+| Claims that held | 72 of 103 (70%) | 75 of 100 (75%) |
+| Keywords claimed that are not in the CV | 9 | 0 |
+| Years corrected | 22 | 25 |
+
+- **The lists were the same.** All three planted strong matches reached the long list with both models, and the short list held only strong matches. The scores differed (the medium model was stricter with partial matches) but not the outcome.
+- **The medium model invented no keywords; the small model invented nine**, all for adjacent candidates. The evidence check caught every one of them.
+- **Both models got years wrong often**, usually too low: for example "4 years of Terraform" where the dated jobs give 6.3. The check corrected them in the claims.
+- **One pool, one vacancy.** The figures show what can happen, not rates.
+
+**What the comparison exposed, and what was changed:**
+
+1. **Years in the strengths were not checked.** The strengths shown to the recruiter repeated the model's wrong years. Now every number of years in a strength, concern or reasoning sentence is compared with the computed values (also when written as words, "twelve years"), and a point that states wrong years is removed and flagged.
+2. **The reasoning lost its main sentences**, because they named missing keywords or years. The assessment prompt (now version 2) asks the model to leave years and keyword lists out of its text, because code shows those above it, and to write about relevance, progression and responsibility instead.
+3. **The script prompt split alternatives.** The vacancy said "AWS and/or Azure" and "compliance frameworks (e.g., ISO 27001, SOC 2)"; version 1 of the script prompt made separate hard items of each, which no planted candidate could meet together. Version 2 treats "and/or", "e.g." and examples in brackets as alternatives, and prefers one item with alternatives when in doubt.
+4. **Claims named whole criteria lines** ("AWS or Azure or Google Cloud") as if they were one keyword, after the change above: 80 claims were rejected for that alone. The criteria are now listed to the model one keyword at a time, and the prompt asks for one keyword per claim.
+
+**Fresh pool with the revised prompts, small model** (new vacancy and candidates, because the test suite had emptied the test database in between):
+
+- The script now grouped the alternatives as the vacancy meant them: `AWS | Azure | Google Cloud`, `Terraform | CloudFormation | Pulumi`, `Docker | Kubernetes`, `Prometheus | Grafana | Azure Monitor`.
+- Short list: 2 of 2 strong matches. Long list: the 3 strong matches, then 3 partial.
+- 20 of 20 CVs (two were retried once). 12 assessments, $0.0073.
+- Claims that held: 102 of 163 (63%). The 33 keywords claimed but not in the CV were real inventions ("CI/CD pipelines", "ISO 27001"), all caught. 28 years were corrected.
+- The strengths no longer state years. The reasoning kept its main sentences.
+
+**Still wrong, and not fixed:** every listed candidate in both pools carried "hard requirement not met". The script proposal adds requirements the candidate pool was never planted with (in the second pool "CI/CD pipelines" and "ISO 27001 | SOC 2", taken from the responsibilities). The vacancy profile (which plants the pool) and the script proposal (which screens it) are extracted separately, on purpose, and they disagree. The lists still come out right, because the ranking falls back to "fewest missed requirements first", but every entry is flagged. A recruiter who reviews the script would make those items soft. A decision is needed before the evaluation in stage 8 (see "Still open").
+
+**Choice of model:** the assessment stays on `mistral-small-2603`. The medium model produced the same lists at ten times the price; its one advantage, fewer invented keywords, is covered by the evidence check.
+
 ## Still open
 
-- **Nothing of this stage has run against the real model yet.** The open questions are real ones:
-  - How often does a real model claim keywords or years the CV does not support? That is the evidence accuracy.
-  - How well do the script's keywords match the wording of real CVs? The script and the candidate pool were extracted separately, so "CI/CD" in one may be "CI/CD pipelines" in the other, and whole-word matching will miss it.
-  - Does the model's fit score add anything over the deterministic score, or mostly repeat it?
-  - Small model or medium model for assessment: quality against a price about ten times higher.
+- **The script and the candidate pool disagree** (see above). Options: leave it to the recruiter, who reviews the script; let the script proposal see the vacancy profile's vocabulary; or have the proposal mark items that come from the responsibilities as soft. To be decided with the author.
+- **Near-misses in wording**: the profile planted "subnets", the script asked for "subnet". Whole-word matching misses that.
+- **Does the model's fit score add anything over the computed score?** In both pools it agreed with it on the order of the top six. Two pools cannot show more.
+- **Evidence accuracy of 63 to 75% means a quarter to a third of the model's claims were wrong.** The check removes them, so the recruiter does not see them, but it shows how much the check is needed.
 - **The sentence check on the reasoning is blunt.** It works on keywords and numbers. A false statement that names neither passes.
 - **Keyword matching is literal**: whole words, ignoring case. "Azure" in the script is found in "Microsoft Azure", but an abbreviation such as "MS Azure" for a script keyword "Microsoft Azure" is missed, and there are no synonyms. Real CVs would need more.
 - **Evaluation** (precision, recall, consistency, the name-swap test) is stage 8. The counts of claims made and supported are already stored per assessment for it.

@@ -711,7 +711,7 @@ async def test_each_run_records_how_it_was_made(
         "short_size": 1,
         "weight_deterministic": 0.5,
         "model": "fake",
-        "prompt_version": "assessment_v1",
+        "prompt_version": "assessment_v2",
     }
 
 

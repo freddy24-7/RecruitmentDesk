@@ -336,5 +336,6 @@ Decided (2026-10-13):
 Still open:
 
 - Whether to show different messages for an invalid and a used-up code (specified as different, as requested, with rate limiting to contain the leak).
-- Which Mistral models to use per step, decided after a small comparison in stages 4 and 6.
+- Which Mistral models to use per step. Measured so far (stage 6): for assessment, `mistral-medium-2604` gave the same lists as `mistral-small-2603` at ten times the price; small is used for every step for now.
+- How to keep the selection script and the planted candidate pool from disagreeing (stage 6 finding).
 - Whether to include CSV export, and print or export of interview questions.

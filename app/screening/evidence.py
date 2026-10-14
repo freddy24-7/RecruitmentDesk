@@ -36,7 +36,43 @@ SENTENCE_UNSUPPORTED = "sentence_unsupported"
 YEARS_TOLERANCE = 1.0
 
 _SENTENCE = re.compile(r"(?<=[.!?])\s+")
-_YEARS = re.compile(r"(\d+(?:\.\d+)?)\s*\+?\s*(?:years?|yrs?)\b", re.IGNORECASE)
+_NUMBER_WORDS = {
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "thirteen": 13,
+    "fourteen": 14,
+    "fifteen": 15,
+    "sixteen": 16,
+    "seventeen": 17,
+    "eighteen": 18,
+    "nineteen": 19,
+    "twenty": 20,
+}
+_YEARS = re.compile(
+    r"\b(\d+(?:\.\d+)?|" + "|".join(_NUMBER_WORDS) + r")\s*\+?\s*(?:years?|yrs?)\b",
+    re.IGNORECASE,
+)
+
+
+def stated_years(text: str) -> list[float]:
+    """Every number of years a text states, in digits or in words."""
+    found = []
+    for number in _YEARS.findall(text):
+        word = number.lower()
+        found.append(
+            float(_NUMBER_WORDS[word]) if word in _NUMBER_WORDS else float(number)
+        )
+    return found
 
 
 @dataclass(frozen=True)
@@ -105,41 +141,54 @@ def check_assessment(
         if not any(c.keyword.lower() == claim.keyword.lower() for c in found):
             found.append(CheckedClaim(keyword=claim.keyword, years=computed))
 
-    # 2. Strengths rest on keywords the candidate has.
+    # Every number of years in the text must match something computed: the
+    # total, or the years of a keyword the CV contains.
+    known_years = [total_years, *(claim.years for claim in found)]
+
+    def wrong_years(text: str) -> list[float]:
+        return [
+            years
+            for years in stated_years(text)
+            if not any(_close(years, known) for known in known_years)
+        ]
+
+    def years_detail(numbers: list[float]) -> str:
+        return ", ".join(f"{years:g} years" for years in numbers)
+
+    # 2. Strengths rest on keywords the candidate has, and state true years.
     strengths = []
     for point in assessment.strengths:
         missing = [k for k in point.keywords if not mentions(cv_text, k)]
+        wrong = wrong_years(point.text)
         if missing:
             flags.append(Flag(STRENGTH_UNSUPPORTED, ", ".join(missing)))
+        elif wrong:
+            flags.append(Flag(STRENGTH_UNSUPPORTED, years_detail(wrong)))
         else:
             strengths.append(point.text)
 
-    # 3. Concerns rest on keywords the candidate lacks.
+    # 3. Concerns rest on keywords the candidate lacks, and state true years.
     concerns = []
     for point in assessment.concerns:
         present = [k for k in point.keywords if mentions(cv_text, k)]
+        wrong = wrong_years(point.text)
         if present:
             flags.append(Flag(CONCERN_CONTRADICTED, ", ".join(present)))
+        elif wrong:
+            flags.append(Flag(CONCERN_CONTRADICTED, years_detail(wrong)))
         else:
             concerns.append(point.text)
 
     # 4. The reasoning, sentence by sentence.
     absent = [k for k in script_keywords if not mentions(cv_text, k)]
-    known_years = [total_years, *(claim.years for claim in found)]
     kept = []
     for sentence in _SENTENCE.split(assessment.reasoning):
         named_absent = [k for k in absent if mentions(sentence, k)]
-        stated = [float(number) for number in _YEARS.findall(sentence)]
-        unmatched = [
-            years
-            for years in stated
-            if not any(_close(years, known) for known in known_years)
-        ]
+        unmatched = wrong_years(sentence)
         if named_absent:
             flags.append(Flag(SENTENCE_UNSUPPORTED, ", ".join(named_absent)))
         elif unmatched:
-            detail = ", ".join(f"{years:g} years" for years in unmatched)
-            flags.append(Flag(SENTENCE_UNSUPPORTED, detail))
+            flags.append(Flag(SENTENCE_UNSUPPORTED, years_detail(unmatched)))
         elif sentence.strip():
             kept.append(sentence.strip())
 

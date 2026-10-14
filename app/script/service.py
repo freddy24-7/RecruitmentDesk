@@ -26,7 +26,7 @@ from app.script.schemas import Kind, ProposedItem, ScriptItem, ScriptProposal
 from app.vacancy.models import SUBMITTED, Vacancy
 from app.vacancy.schemas import VacancySections
 
-PROMPT = "script_v1"
+PROMPT = "script_v2"
 CALL = "script"
 # A proposal should come out the same when asked twice.
 TEMPERATURE = 0.1

@@ -148,7 +148,7 @@ async def test_the_model_reads_the_vacancy_text_and_the_call_is_recorded(
     record = (
         await db.scalars(select(UsageRecord).where(UsageRecord.call_type == "script"))
     ).one()
-    assert (record.prompt_version, record.outcome) == ("script_v1", "ok")
+    assert (record.prompt_version, record.outcome) == ("script_v2", "ok")
 
 
 async def test_a_proposal_is_not_a_saved_script(

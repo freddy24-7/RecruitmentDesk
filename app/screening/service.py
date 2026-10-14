@@ -47,7 +47,7 @@ from app.vacancy.schemas import VacancySections
 
 log = structlog.get_logger()
 
-PROMPT = "assessment_v1"
+PROMPT = "assessment_v2"
 CALL = "assessment"
 # Low, so the same input gives a very similar assessment (PRD F6).
 TEMPERATURE = 0.0
@@ -202,11 +202,15 @@ def criteria_text(items: list[ScriptItem]) -> str:
     for item in items:
         if not item.enabled:
             continue
-        years = f", at least {item.min_years} years" if item.min_years else ""
-        lines.append(
-            f"- {' or '.join(item.any_of)}{years} "
-            f"({'required' if item.kind.value == 'hard' else 'nice to have'})"
-        )
+        years = f"; at least {item.min_years} years" if item.min_years else ""
+        need = "required" if item.kind.value == "hard" else "nice to have"
+        if len(item.any_of) == 1:
+            lines.append(f"- keyword: {item.any_of[0]} ({need}{years})")
+        else:
+            # Listed one by one, so the model names a single keyword in its
+            # claims, not the whole line.
+            alternatives = "; ".join(item.any_of)
+            lines.append(f"- one of the keywords: {alternatives} ({need}{years})")
     return "\n".join(lines)
 
 
