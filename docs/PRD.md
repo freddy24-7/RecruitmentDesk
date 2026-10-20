@@ -2,7 +2,7 @@
 
 A demo web app that shows how an LLM (Mistral) can streamline the first stages of recruitment: writing a vacancy, creating a pool of fictional candidates, turning the vacancy into screening criteria, and proposing a long list and short list with a written reason for each candidate.
 
-**Status:** draft, for building with Claude Code. Verify current Mistral model names, structured-output support, rate limits and prices, and Railway (or other host) limits before each stage.
+**Status:** built (stages 0 to 9, 2026-10-20). Deployment is prepared and tested locally but not done; see the README, "How to deploy". Verify current Mistral model names, structured-output support, rate limits and prices, and Railway (or other host) limits before deploying or changing models.
 
 **This is a demo, not a product.** All candidates are fictional. Nothing here should be used to make real hiring decisions.
 
@@ -342,6 +342,10 @@ Decided (2026-10-13):
 - Equal final scores are broken by the ranking computed by code, so the same input always gives the same lists (stage 8).
 - "Reset demo" deletes the workspace's vacancies but keeps its session and its limits (stage 8).
 - Per-IP rate limit: at most 5 new sessions per IP address per hour (`MAX_SESSIONS_PER_IP_PER_HOUR`), checked before a code use is counted. Visitors behind one network share it (stage 8).
+- Deployment target: Railway, one Docker image and PostgreSQL, one replica, deployed on push after CI. No `railway.json` (Railway's Config as Code is deprecated); the settings are made in the dashboard and listed in the README (stage 9).
+- `APP_ENV=production` refuses to start without the daily spend cap, secure cookies, the client IP header and an API key. The visitor's address is read from a header only when `CLIENT_IP_HEADER` names one (`x-real-ip` on Railway) (stage 9).
+- Production spend cap: $1.00 a day, plus a monthly limit on the Mistral account (stage 9).
+- Not deployed for now, by the author's decision (2026-10-20).
 
 Still open:
 
