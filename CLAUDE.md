@@ -120,6 +120,9 @@ uv run alembic revision --autogenerate -m "..."   # new migration after a model 
 npm --prefix web run lint && npm --prefix web run build && npm --prefix web test   # frontend: ESLint, types and build, Vitest
 uv run python scripts/evaluate_lists.py --services fake   # evaluation with the fake model: checks the evaluation code. Own database (<name>_eval)
 uv run python scripts/evaluate_lists.py --services mistral  # real model, costs money: states the calls and asks first. Only on request
+docker build -t recruitdesk .                 # the production image (also built in CI)
+uv run python scripts/check_deployment.py <url> [--spoofing]   # checks a deployment from outside: health, 401s, IP header
+uv run python scripts/take_screenshots.py <url>   # README screenshots; asks for a code (not shown), costs ~3 cents on the real model
 ```
 
 ## Working with the author

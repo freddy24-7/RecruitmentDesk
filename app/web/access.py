@@ -21,6 +21,7 @@ from app.config import Settings, get_settings
 from app.db import get_session
 from app.limits.attempts import AttemptLimits, is_locked_out, record_failure
 from app.limits.sessions import TOO_MANY_SESSIONS_MESSAGE, WINDOW, may_start_session
+from app.web.client import client_ip
 from app.web.errors import ApiError
 
 log = structlog.get_logger()
@@ -74,7 +75,7 @@ async def start_session(
     if existing is not None:
         return _session_response(existing, settings)
 
-    ip_hash = hash_ip(request.client.host if request.client else "unknown", pepper)
+    ip_hash = hash_ip(client_ip(request, settings), pepper)
     limits = AttemptLimits.from_settings(settings)
     if await is_locked_out(session, ip_hash, limits, now):
         log.warning("access.locked_out")

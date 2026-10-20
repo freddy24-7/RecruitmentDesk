@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.config import Settings
+from app.config import Settings, missing_for_production
 
 
 @pytest.mark.parametrize(
@@ -62,3 +62,70 @@ def test_an_empty_contact_url_means_no_contact_link(
     monkeypatch.setenv("CONTACT_URL", "  ")
 
     assert Settings(_env_file=None).contact_url is None
+
+
+def production(**values: object) -> list[str]:
+    complete: dict[str, object] = {
+        "app_env": "production",
+        "llm_provider": "mistral",
+        "mistral_api_key": "fake-key-for-tests",
+        "daily_spend_cap_usd": "1.00",
+        "cookie_secure": True,
+        "client_ip_header": "X-Real-IP",
+    }
+    settings = Settings(_env_file=None, **(complete | values))  # type: ignore[arg-type]
+    return missing_for_production(settings)
+
+
+def test_production_starts_with_all_its_protections() -> None:
+    assert production() == []
+
+
+@pytest.mark.parametrize(
+    ("change", "named"),
+    [
+        ({"daily_spend_cap_usd": ""}, "DAILY_SPEND_CAP_USD"),
+        ({"cookie_secure": False}, "COOKIE_SECURE=true"),
+        ({"client_ip_header": " "}, "CLIENT_IP_HEADER"),
+        ({"mistral_api_key": ""}, "MISTRAL_API_KEY"),
+    ],
+)
+def test_production_does_not_start_without_a_protection(
+    change: dict[str, object], named: str
+) -> None:
+    assert production(**change) == [named]
+
+
+def test_development_does_not_need_them() -> None:
+    settings = Settings(
+        _env_file=None, daily_spend_cap_usd="", cookie_secure=False, llm_provider="fake"
+    )
+
+    assert missing_for_production(settings) == []
+
+
+def test_a_settings_error_does_not_print_the_secret(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ACCESS_CODE_PEPPER", "short-but-secret-value")
+
+    with pytest.raises(ValidationError) as error:
+        Settings(_env_file=None)
+
+    assert "short-but-secret-value" not in str(error.value)
+
+
+def test_the_app_refuses_to_start_in_production_without_its_protections(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.config import get_settings
+    from app.main import create_app
+
+    monkeypatch.setenv("APP_ENV", "production")
+    get_settings.cache_clear()
+    try:
+        with pytest.raises(RuntimeError, match="DAILY_SPEND_CAP_USD|CLIENT_IP_HEADER"):
+            create_app()
+    finally:
+        monkeypatch.delenv("APP_ENV")
+        get_settings.cache_clear()

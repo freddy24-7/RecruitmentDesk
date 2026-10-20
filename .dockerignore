@@ -1,0 +1,22 @@
+# Only what the image needs. Secrets and local state never go in.
+.env
+.env.*
+.git
+.github
+.venv
+.mypy_cache
+.ruff_cache
+.pytest_cache
+.coverage
+htmlcov
+**/__pycache__
+web/node_modules
+web/dist
+node_modules
+test-results
+playwright-report
+reports
+cards
+docs
+tests
+scripts

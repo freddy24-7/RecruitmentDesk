@@ -81,6 +81,87 @@ uv run python scripts/manage_codes.py disable --label c03
 - The script acts on the database in `DATABASE_URL` and must use the same pepper as the running app.
 - Never put a code in the repository, in an issue, in CI configuration or in a chat.
 
+## Deployment (Railway)
+
+The app is one Docker image (`Dockerfile`): the built frontend served by the FastAPI backend, on one origin. On start it runs the migrations, then the app (`deploy/start.sh`). Jobs run inside the web process, so it runs as **one replica**.
+
+### Cost
+
+Railway Hobby: $5 a month, which includes $5 of usage. The app and its database need about 0.5 GB of memory together and little CPU, so expect roughly $5 to $10 a month in total ([prices](https://docs.railway.com/reference/pricing/plans)). Mistral is billed separately and is limited by the daily spend cap. **Delete the project when the demo is no longer needed** (see the end of this section).
+
+### Set up (once, in the Railway dashboard)
+
+1. On the Mistral console, set a monthly spending limit (for example $10) and create a **separate API key for production**, so it can be revoked on its own.
+2. New project, then **Deploy from GitHub repo** and choose this repository. Railway finds the `Dockerfile` itself.
+3. In the project, **add PostgreSQL**.
+4. In the app service, under **Settings**:
+   - Healthcheck path: `/health`.
+   - Replicas: 1. Serverless (sleeping): off, so a visitor never meets a cold start.
+   - Restart policy: on failure.
+   - Source: deploy on push to `main`, with **Wait for CI** on, so only a commit that passed CI is deployed.
+   - Networking: generate a domain.
+5. In the app service, under **Variables** (typed in the dashboard, never in the repository or a chat):
+
+   | Variable | Value |
+   | --- | --- |
+   | `APP_ENV` | `production`. The app then refuses to start without the protections below |
+   | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (a reference to the database) |
+   | `ACCESS_CODE_PEPPER` | a new secret: `python3 -c "import secrets; print(secrets.token_urlsafe(48))"`. Keep it in a password manager |
+   | `SESSION_SECRET` | another new secret, made the same way |
+   | `LLM_PROVIDER` | `mistral` |
+   | `MISTRAL_API_KEY` | the production key |
+   | `DAILY_SPEND_CAP_USD` | `1.00` |
+   | `CLIENT_IP_HEADER` | `x-real-ip` (where Railway's edge passes the visitor's address) |
+   | `COOKIE_SECURE` | `true` |
+   | `CONTACT_URL` | your LinkedIn profile URL |
+
+   The model versions and the limits have defaults in `app/config.py`; `.env.example` lists them all.
+
+### Deploy
+
+Push to `main`. CI runs (including building the image), and Railway then builds and starts the new version. A failed health check keeps the old version running.
+
+### Check the deployment
+
+```bash
+uv run python scripts/check_deployment.py https://<app>.up.railway.app             # health, frontend, every API route 401 without a session
+uv run python scripts/check_deployment.py https://<app>.up.railway.app --spoofing  # a made-up IP header must not get around the lockout
+```
+
+`--spoofing` sends 11 malformed codes, each with a different made-up address in the headers. It must report a lockout: that shows the app counts the address Railway saw, not one a visitor sends. It locks your own address out of the code screen for 15 minutes; then open the app from another network (a phone without wifi) and check that it is **not** locked out. That shows visitors are told apart, not all counted as one.
+
+### Access codes for production
+
+The codes are created from your machine, against the production database, with the production pepper. Use the database's **public** URL (Railway: Postgres service, Variables, `DATABASE_PUBLIC_URL`). Type the values at a hidden prompt, so they do not end up in your shell history:
+
+```bash
+read -rs DATABASE_URL && export DATABASE_URL            # paste the public database URL, then Enter
+read -rs ACCESS_CODE_PEPPER && export ACCESS_CODE_PEPPER  # paste the production pepper, then Enter
+uv run python scripts/manage_codes.py create --count 10   # prints the codes once: into the password manager
+uv run python scripts/manage_codes.py status
+unset DATABASE_URL ACCESS_CODE_PEPPER
+```
+
+### Screenshots
+
+```bash
+uv run python scripts/take_screenshots.py https://<app>.up.railway.app   # asks for a code without showing it
+```
+
+One walk through the app with 10 candidates: about 22 model calls, roughly 3 cents, and one use of the code. Writes `docs/screenshots/`.
+
+### Operate
+
+- **Stop all generation at once:** set `DAILY_SPEND_CAP_USD` to `0`. Everything else keeps working.
+- **A code is abused:** `manage_codes.py disable --label <label>` (as above).
+- **Roll back:** in Railway, Deployments, redeploy an earlier deployment. So far every migration only adds tables, indexes and nullable columns, so an earlier version runs on the newer database. A future migration that removes or renames something breaks this; check before rolling back past it.
+- **Logs:** Railway, the app service, Logs. They hold ids, counts and error kinds, never CV text, codes or addresses.
+- **Spend:** the usage records in the database; the cap counts the same records.
+
+### Remove everything
+
+In Railway: the project, Settings, **Delete project** (this deletes the app and the database with all data). Then revoke the production key on the Mistral console. Nothing else is billed.
+
 ## Checks
 
 ```bash
@@ -88,6 +169,7 @@ uv run ruff check . && uv run ruff format --check . && uv run mypy .
 uv run pytest tests/unit tests/integration --cov --cov-fail-under=70   # needs the local PostgreSQL
                                          # tests use their own database (recruitdesk_test) and fake secrets
 uv run python scripts/check_tracked_files.py    # no access codes or .env files tracked by Git
+docker build -t recruitdesk .                   # the image Railway deploys
 
 uv run pytest -m mistral tests/real -s             # six real Mistral calls (under one cent); needs MISTRAL_API_KEY
 

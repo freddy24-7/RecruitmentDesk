@@ -292,3 +292,24 @@ async def test_simultaneous_requests_from_one_address_cannot_pass_the_limit(
 
     assert sorted(r.status_code for r in responses) == [200] * 5 + [429] * 7
     assert await db.scalar(select(func.count()).select_from(Workspace)) == 5
+
+
+async def test_a_spoofed_address_header_does_not_get_around_the_lockout(
+    client_for: ClientFor, add_code: AddCode
+) -> None:
+    # Locally CLIENT_IP_HEADER is not set, so the header must be ignored.
+    client = client_for("203.0.113.60")
+    for n in range(10):
+        await client.post(
+            "/api/session",
+            json={"code": UNKNOWN_CODE},
+            headers={"X-Real-IP": f"198.51.100.{n}", "X-Forwarded-For": f"192.0.2.{n}"},
+        )
+
+    refused = await client.post(
+        "/api/session",
+        json={"code": UNKNOWN_CODE},
+        headers={"X-Real-IP": "198.51.100.99"},
+    )
+
+    assert refused.status_code == 429

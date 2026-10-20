@@ -102,3 +102,20 @@ jobs:
         run: uv run playwright install --with-deps chromium
       - name: Browser tests
         run: uv run pytest -m e2e tests/e2e
+
+  image:
+    # The image Railway deploys. Built here so a broken Dockerfile fails CI,
+    # not the deployment. It is not pushed anywhere.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the image
+        run: docker build -t recruitdesk:ci .
+      - name: The image refuses to start in production without its protections
+        run: |
+          output=$(docker run --rm -e APP_ENV=production -e LLM_PROVIDER=fake \
+            -e ACCESS_CODE_PEPPER=ci-not-a-real-pepper-00000000000000 \
+            -e SESSION_SECRET=ci-not-a-real-secret-000000000000000 \
+            -e DATABASE_URL=postgresql://nobody:nothing@127.0.0.1:1/none \
+            recruitdesk:ci python -c "from app.main import create_app; create_app()" 2>&1 || true)
+          echo "$output" | grep -q "APP_ENV=production needs"

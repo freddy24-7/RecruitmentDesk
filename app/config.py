@@ -12,7 +12,15 @@ MIN_SECRET_LENGTH = 32
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # hide_input_in_errors: a settings error must never print a value, as
+    # the values include the secrets.
+    model_config = SettingsConfigDict(
+        env_file=".env", extra="ignore", hide_input_in_errors=True
+    )
+
+    # "production" makes the app refuse to start without the protections a
+    # public deployment needs (see `missing_for_production`).
+    app_env: Literal["development", "production"] = "development"
 
     # The default matches docker-compose.yml. It is a local development
     # credential, not a secret. Production sets DATABASE_URL.
@@ -39,6 +47,11 @@ class Settings(BaseSettings):
     failed_attempts_per_ip: int = 10
     failed_attempts_window_minutes: int = 15
     failed_attempts_global_per_hour: int = 100
+    # The request header in which the host's proxy passes the visitor's
+    # address, for example `x-real-ip` on Railway. Empty means the address of
+    # the connection itself, which is right when nothing sits in between
+    # (local development). Never trust a header the visitor can set.
+    client_ip_header: str | None = None
     # New sessions (each one a fresh workspace with its own limits) that one
     # IP address may start per hour.
     max_sessions_per_ip_per_hour: int = 5
@@ -129,12 +142,39 @@ class Settings(BaseSettings):
     def empty_cap_means_none(cls, value: object) -> object:
         return None if isinstance(value, str) and not value.strip() else value
 
+    @field_validator("client_ip_header", mode="before")
+    @classmethod
+    def header_name(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip().lower() or None
+        return value
+
     @field_validator("mistral_api_key")
     @classmethod
     def empty_key_means_none(cls, value: SecretStr | None) -> SecretStr | None:
         if value is None or not value.get_secret_value().strip():
             return None
         return SecretStr(value.get_secret_value().strip())
+
+
+def missing_for_production(settings: Settings) -> list[str]:
+    """What a public deployment still needs (PRD 11). Empty when all is set.
+
+    Checked at startup, outside the settings validation on purpose: a
+    validation error prints the input values, and those include the secrets.
+    """
+    if settings.app_env != "production":
+        return []
+    missing = []
+    if settings.daily_spend_cap_usd is None:
+        missing.append("DAILY_SPEND_CAP_USD")
+    if not settings.cookie_secure:
+        missing.append("COOKIE_SECURE=true")
+    if settings.client_ip_header is None:
+        missing.append("CLIENT_IP_HEADER")
+    if settings.llm_provider == "mistral" and settings.mistral_api_key is None:
+        missing.append("MISTRAL_API_KEY")
+    return missing
 
 
 @lru_cache

@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.access.sessions import require_workspace
 from app.candidates.service import CandidateGenerator
-from app.config import get_settings
+from app.config import get_settings, missing_for_production
 from app.db import get_sessionmaker
 from app.interview.service import InterviewQuestioner
 from app.jobs.runner import JobRunner, mark_interrupted_jobs
@@ -90,6 +90,8 @@ def create_app(llm_client: LlmClient | None = None) -> FastAPI:
     """Build the application. Tests pass a fake `llm_client`."""
     configure_logging()
     settings = get_settings()
+    if missing := missing_for_production(settings):
+        raise RuntimeError("APP_ENV=production needs " + ", ".join(missing))
     require_known_price(settings.mistral_model_vacancy)
     require_known_price(settings.mistral_model_profile)
     require_known_price(settings.mistral_model_cv)

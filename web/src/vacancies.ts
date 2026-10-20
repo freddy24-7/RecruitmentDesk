@@ -55,6 +55,10 @@ export function useVacancies() {
       )
         ? POLL_MS
         : false,
+    // Keep polling in a tab that is not in front, or that the browser does
+    // not report as focused: a job's progress must never stall on screen.
+    // Polling only happens while a job runs.
+    refetchIntervalInBackground: true,
   })
 }
 
